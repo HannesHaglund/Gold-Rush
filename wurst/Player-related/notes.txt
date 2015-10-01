@@ -1,0 +1,2 @@
+
+When changing ID's for chaser and runner, make sure to check all files in this folder!

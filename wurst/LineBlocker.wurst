@@ -1,0 +1,36 @@
+package LineBlocker
+
+import ArrayList
+
+constant showModel = "Doodads\\Cityscape\\Props\\MagicRunes\\MagicRunes1.mdl"
+constant pBlockerId = 'YTpc'
+constant deltaRange = 128.0
+
+class LineElement
+	private destructable pBlocker
+	private effect sfx
+	
+	construct(vec2 where)
+		let c = CreateDestructable(pBlockerId, where.x, where.y, 0.0, 0.0, 0)
+		sfx = AddSpecialEffect(showModel, c.getX(), c.getY())
+		
+	ondestroy
+		pBlocker.kill()
+		sfx.destr()
+
+public class LineBlocker
+	private ArrayList<LineElement> elements
+	
+	construct(vec2 startp, vec2 endp)
+		elements = new ArrayList<LineElement>()
+		let angle = startp.angleTo(endp)
+		let distance = startp.distToVec(endp)
+		let distanceSegments = (distance/deltaRange).round()
+		for int i = 0 to distanceSegments - 1
+			let pos = vec2(startp.x + i*deltaRange*angle.cos(),  startp.y + i*deltaRange*angle.sin())
+			elements.add(new LineElement(pos))
+		
+	ondestroy
+		for LineElement e in elements
+			destroy e
+		destroy elements

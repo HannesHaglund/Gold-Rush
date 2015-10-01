@@ -1,0 +1,44 @@
+package CustomKnockback
+
+import KnockbackFork
+
+
+function doNothing()
+	skip
+	
+public abstract class KbUpdateCallback
+	abstract function call(CustomKnockback kb)
+	
+public abstract class KbEndCallback
+	abstract function call(CustomKnockback kb, StopReason reason)
+
+public class CustomKnockback extends Knockback
+	protected unit target
+	private KbUpdateCallback updateCallback
+	private KbEndCallback endCallback
+	
+	construct(unit target, real distance, real time, angle xyangle)
+		super(target, distance, time, xyangle)
+		this.target = target
+		this.updateCallback = (CustomKnockback kb) -> doNothing()
+		this.endCallback = (CustomKnockback kb, StopReason reason) -> doNothing()
+	
+	ondestroy
+		destroy updateCallback
+		destroy endCallback
+		
+	function setUpdate(KbUpdateCallback callback)
+		destroy updateCallback
+		updateCallback = callback
+		
+	function setEnd(KbEndCallback callback)
+		destroy endCallback
+		endCallback = callback
+	
+	protected override function onTimedLoop()
+		updateCallback.call(this)
+		super.onTimedLoop()
+		
+	protected override function stop(StopReason reason)
+		endCallback.call(this, reason)
+		super.stop(reason)

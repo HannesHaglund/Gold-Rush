@@ -1,0 +1,65 @@
+package Missile
+
+import Sensor
+import Fx
+import Updateable
+
+constant checkHowOften = 1
+
+public abstract class MissileEndCallback
+	abstract function call(Missile source)
+	
+function doNothing()
+	skip
+
+public class Missile extends Sensor
+	private Fx model
+	private vec2 velocity
+	private real velMagnitude
+	private real distanceLeft
+	private MissileEndCallback callback
+	
+	construct(string model, real senseRange, vec3 pos, vec2 velocity, real maxDistance, angle facing)
+		super(senseRange, vec2(pos.x, pos.y), checkHowOften)
+		this.velMagnitude = velocity.length()
+		this.velocity = velocity
+		this.model = new Fx(pos, facing, model)
+		..setXYAngle(facing) //There's a bug (stems from dummyrecycler) where the facing is wrong, this kinda resolves that
+		this.distanceLeft = maxDistance
+		this.callback = (Missile src) -> doNothing()
+		addUpdate(1, (Updateable u) -> this.update())
+		
+	ondestroy
+		destroy model
+		destroy callback
+		
+	function getFacingAngle() returns angle
+		return model.getXYAngle()
+		
+	function setEndCallback(MissileEndCallback callback)
+		this.callback = callback
+		
+	protected override function unitMeetsInteriorSensorRequirements(unit u) returns boolean
+		return u != model.getDummy() and super.unitMeetsInteriorSensorRequirements(u)
+		
+	override function setPos(vec2 npos)
+		model.setPos(npos.x, npos.y)
+		super.setPos(npos)
+		
+	protected function setScale(real whatScale)
+		model.setScale(whatScale)
+	
+	protected function setVelocity(vec2 nvel)
+		velocity = nvel
+		velMagnitude = nvel.length()
+		
+	protected function getVelocity() returns vec2
+		return velocity
+	
+	protected function update()
+		setPos(getPos() + velocity)
+		if distanceLeft <= 0
+			callback.call(this)
+			safeDestroy()
+		else
+			distanceLeft -= velMagnitude

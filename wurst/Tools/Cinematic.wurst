@@ -1,0 +1,159 @@
+package Cinematic
+
+import ArrayList
+
+constant skipMsg = " wants to skip the cinematic. "
+constant skipMsgReq = " more are required."
+constant skipTime = 0.0
+constant actorOwner = Player(15) //Neutral passive
+
+class CinematicEvent
+	CinematicCallback callback
+	real duration
+	
+	construct(real duration, CinematicCallback callback)
+		this.callback = callback
+		this.duration = duration
+	
+	ondestroy
+		destroy callback
+		
+
+	
+public abstract class CinematicCallback
+	abstract function call(real timeUntilNext)
+
+public class Cinematic
+	private static thistype activeInstance
+	private static boolean anyActive = false
+	
+	private bool active
+	private real inTime
+	private real outTime
+	private timer t
+	private ArrayList<CinematicEvent> events
+	private int nextEvent
+	private group actors
+	private boolean playOnce
+	
+	private bool canSkip
+	private CinematicCallback onSkip
+	private trigger escTrig
+	private bool array[12] skipStatus
+	
+	construct(real inTime, real outTime, bool playOnce)
+		this.active = false
+		this.outTime = outTime
+		this.inTime = inTime
+		this.playOnce = playOnce
+		this.t = getTimer()
+		..setData(this castTo int)
+		this.events = new ArrayList<CinematicEvent>()
+		this.actors = CreateGroup()
+		this.canSkip = false
+			
+	ondestroy
+		exit()
+		t.release()
+		for CinematicEvent ce in events
+			destroy ce
+		destroy events
+		actors.destr()
+		if canSkip
+			destroy onSkip
+			escTrig.destr()
+	
+	function start()
+		if not anyActive and not active and events.getSize() > 0
+			CinematicModeExBJ(true, bj_FORCE_ALL_PLAYERS, inTime)
+			active = true
+			anyActive = true
+			activeInstance = this
+			nextEvent = 0
+			processEvent()
+			
+	function exit()
+		if active
+			for unit u in actors
+				u.remove()
+			CinematicModeExBJ(false, bj_FORCE_ALL_PLAYERS, outTime)
+			t.pause()
+			active = false
+			anyActive = false
+			if playOnce
+				destroy this
+				
+	function length() returns real
+		var result = 0.0
+		for CinematicEvent e in events
+			result += e.duration
+		return result
+			
+	function talk(int portraitId, playercolor portraitColor, string actorName, string actorLine, real duration)
+		if active
+			SetCinematicScene(portraitId, portraitColor, actorName, actorLine, duration, 0.0)
+		else
+			printWarning("Tried to talk in a cinematic without it being started.")
+			
+	function addActor(int ownerId, int uid, vec2 pos, angle facing) returns unit
+		if active
+			let u = createUnit(actorOwner, uid, pos, facing)
+			..setColor(players[ownerId].getColor())
+			actors.addUnit(u)
+			return u
+		else
+			printWarning("Tried to add an actor to a cinematic without it being started.")
+			return null
+	
+	function addEvent(real duration, CinematicCallback cb)
+		events.add(new CinematicEvent(duration, cb))
+		
+	function setSkip(CinematicCallback cb)
+		if canSkip
+			destroy onSkip
+		onSkip = cb
+		if not canSkip
+			escTrig = CreateTrigger()
+			for i = 0 to 11
+				if players[i].getSlotState() == PLAYER_SLOT_STATE_PLAYING
+					TriggerRegisterPlayerEventEndCinematic(escTrig, players[i])
+					skipStatus[i] = false
+				else
+					skipStatus[i] = true
+			escTrig.addAction(() -> begin
+				if anyActive
+					let tp = GetTriggerPlayer()
+					if not activeInstance.skipStatus[tp.getId()]
+						activeInstance.skipStatus[tp.getId()] = true
+						print(tp.getNameColored() + skipMsg + activeInstance.howManyWantNotSkip().toString() + skipMsgReq)
+						activeInstance.checkForExit()
+			end)
+			canSkip = true
+	
+	private function processEvent()
+		if not active or nextEvent < 0
+			return
+		if nextEvent < events.getSize()
+			let evnt = events.get(nextEvent)
+			evnt.callback.call(evnt.duration)
+			nextEvent++
+			t.start(evnt.duration, () -> begin
+				let self = GetExpiredTimer().getData() castTo thistype
+				self.processEvent()
+			end)
+			t.resume() //Paranoia
+		else
+			exit() //No more slides, end
+	
+	private function howManyWantNotSkip() returns integer
+		var result = 0
+		for i = 0 to 11
+			if not skipStatus[i]
+				result++
+		return result
+	
+	private function checkForExit()
+		if canSkip and howManyWantNotSkip() <= 0
+			ResetToGameCamera(0.0)
+			onSkip.call(skipTime)
+			exit()

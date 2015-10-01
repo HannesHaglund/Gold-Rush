@@ -1,0 +1,67 @@
+package FancyTextTag
+
+import Updateable
+
+constant angleMin = (PI/8).asAngleRadians()
+constant angleMax = (PI - PI / 8).asAngleRadians()
+constant shrinkTime = 0.35
+constant fadeTime = 0.9
+constant velocity = 0.15
+
+function randomAngle() returns angle
+	return GetRandomReal(angleMin.radians(), angleMax.radians()).asAngleRadians()
+
+public class FancyTextTag extends Updateable
+	private texttag tag
+	private vec2 pos
+	private string text
+	private real lastSize
+	private integer currentTick
+	private integer tickWhenShrinkDone
+	private integer tickWhenDone
+	private real sizeLostPerTick
+
+	construct(vec3 pos, string text, real size, real smallSize)
+		super()
+		this.pos = vec2(pos.x, pos.y)
+		this.text = text
+		lastSize = size
+		currentTick = 0
+		tickWhenShrinkDone = (shrinkTime / ANIMATION_PERIOD).round()
+		tickWhenDone = ((shrinkTime + fadeTime) / ANIMATION_PERIOD).round()
+		sizeLostPerTick = (size - smallSize) / tickWhenShrinkDone
+		newTag(shrinkTime + fadeTime, shrinkTime)
+		addUpdate(1, (Updateable self) -> this.update())
+		
+	ondestroy
+		tag.destr()
+	
+	function getSize() returns real
+		return lastSize
+	
+	function setSize(real newSize)
+		lastSize = newSize
+		tag.setText(text, newSize)
+		
+	private function newTag(real life, real fade)
+		tag = CreateTextTag()
+		..setPos(vec3(pos.x, pos.y, 0.0))
+		..setPermanent(false)
+		..setLifespan(life)
+		..setFadepoint(fade)
+		setSize(lastSize) //Refreshes the string
+		tag.setVisibility(false)
+		if IsVisibleToPlayer(pos.x, pos.y, GetLocalPlayer())
+			tag.setVisibility(true)
+	
+	private function update()
+		currentTick++
+		if currentTick < tickWhenShrinkDone
+			setSize(getSize() - sizeLostPerTick)
+		else if currentTick == tickWhenShrinkDone
+			let angle = randomAngle()
+			tag.destr()
+			newTag(fadeTime, 0.0)
+			tag.setVelocity(velocity * angle.cos(), velocity * angle.sin())
+		else if currentTick == tickWhenDone
+			safeDestroy()

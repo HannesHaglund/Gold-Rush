@@ -1,0 +1,76 @@
+package Treasure
+
+import Lootable
+
+constant dummyOwner = players[12]
+
+public class Treasure
+	
+	private unit dummy
+	private Lootable loot
+	private trigger deathTrigger
+	private boolean deathAnim = true
+	private int coinValueMin
+	private int coinValueMax
+	private real dmgToGoldRatio
+	
+	construct(int unitId, vec2 where, angle facing, real dmgToGoldRatio, int coinValueMin, int coinValueMax)
+		this.dmgToGoldRatio = dmgToGoldRatio
+		this.coinValueMin = coinValueMin
+		this.coinValueMax = coinValueMax
+		setDummy(createUnit(dummyOwner, unitId, where, facing))
+	
+	ondestroy
+		deathTrigger.destr()
+		destroy loot
+		if not deathAnim
+			hide()
+		if dummy.isAlive()
+			dummy.kill()
+		
+	function getFacing() returns angle
+		return dummy.getFacingAngle()
+		
+	function getPos() returns vec2
+		return dummy.getPos()
+		
+	function hasDeathAnimation() returns boolean
+		return deathAnim
+		
+	function hide()
+		dummy.setPathing(false)
+		dummy.hide()
+		
+	function show()
+		dummy.setPathing(true)
+		dummy.show()
+		
+	function turnOffDeathAnimation()
+		deathAnim = false
+	
+	function hiddenDestroy()
+		turnOffDeathAnimation()
+		destroy this
+	
+	protected function getDummy() returns unit
+		return dummy
+		
+	protected function changeDummy(integer uid, vec2 pos, angle facing)
+		destroy loot
+		deathTrigger.destr()
+		dummy.remove()
+		setDummy(createUnit(dummyOwner, uid, pos, facing))
+		
+	protected function onDeath()
+		destroy this
+		
+	private function setDummy(unit newDummy)
+		dummy = newDummy
+		dummy.setUserData(this castTo int)
+		loot = new Lootable(dummy, dmgToGoldRatio, coinValueMin, coinValueMax)
+		setupDeathTrigger()
+	
+	private function setupDeathTrigger()
+		deathTrigger = CreateTrigger()
+		..registerUnitEvent(dummy, EVENT_UNIT_DEATH)
+		..addAction(() -> (GetTriggerUnit().getUserData() castTo thistype).onDeath())

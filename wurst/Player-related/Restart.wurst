@@ -1,0 +1,13 @@
+package Restart
+
+
+import Game
+import BomberFactory
+
+init
+	CreateTrigger()
+	..registerPlayerChatEvent(players[0], "-restart", true)
+	..addAction(() -> begin
+		clearBombers()
+		new Game()
+	end)

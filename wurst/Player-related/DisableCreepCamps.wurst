@@ -1,0 +1,5 @@
+package DisableCreepCamps
+
+init 
+	SetCreepCampFilterState(false)
+	EnableMinimapFilterButtons(true, false)

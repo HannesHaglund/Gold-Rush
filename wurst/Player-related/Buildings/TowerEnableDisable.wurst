@@ -1,0 +1,32 @@
+package TowerEnableDisable
+
+import ClosureEvents
+
+constant enableId = 'A007'
+constant disableId = 'A006'
+
+constant enabledUnitId = 'h001'
+constant disabledUnitId = 'h002'
+
+
+init
+	onCast(disableId, (unit caster, int lvl) -> begin
+		let pos = caster.getPos()
+		let face = caster.getFacingAngle()
+		let owner = caster.getOwner()
+		let hp = caster.getHP()
+		caster.remove()
+		let u = createUnit(owner, disabledUnitId, pos, face)
+		u.setHP(hp)
+		u.getOwner().select(u)
+	end)
+	onCast(enableId, (unit caster, int lvl) -> begin
+		let pos = caster.getPos()
+		let face = caster.getFacingAngle()
+		let owner = caster.getOwner()
+		let hp = caster.getHP()
+		caster.remove()
+		let u = createUnit(owner, enabledUnitId, pos, face)
+		u.setHP(hp)
+		u.getOwner().select(u)
+	end)

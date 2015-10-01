@@ -1,0 +1,46 @@
+package GoldVein
+
+import Treasure
+import Spot
+import Ancient
+
+constant uid = 'uvei'
+constant goldRatio = 1.0
+
+constant ancientChance = 0.10
+constant defenderOwner = players[12]
+
+//Coins
+constant cValMin = 1
+constant cValMax = 2
+
+public class GoldVein extends Treasure
+	
+	private Spot spot
+	private boolean hasSpot
+	
+	construct(Spot where)
+		super(uid, where.getPos(), GetRandomReal(0, 2*PI).asAngleRadians(), goldRatio, cValMin, cValMax)
+		
+		if where.take()
+			spot = where
+			hasSpot = true
+			getDummy().setAnimation("birth")
+			getDummy().queueAnimation("stand")
+		else
+			hasSpot = false
+			destroy this
+	
+	override protected function onDeath()
+		let aspot = spot //Used for placing the potential ancient
+		super.onDeath() //Implicity destroys this, releasing the spot
+		if GetRandomReal(0, 1) < ancientChance
+			new Ancient(aspot) //Spawning the ancient
+		
+	ondestroy
+		if hasSpot
+			spot.release()
+			
+			
+	
+	

@@ -1,0 +1,54 @@
+package PlayerBuilding
+
+import public Updateable
+import LinkedList
+
+
+LinkedList<PlayerBuilding> instances = new LinkedList<PlayerBuilding>()
+
+//Name is bad, it's more like a register for all player buildings of a certain type
+public abstract class PlayerBuilding extends Updateable
+	private int uid
+	private group units
+	
+	construct(integer uid)
+		super()
+		this.uid = uid
+		units = CreateGroup()
+		instances.add(this)
+		
+	ondestroy
+		units.destr()
+		instances.remove(this)
+	
+	protected function addUnit(unit u)
+		if u.getTypeId() == uid
+			units.addUnit(u)
+	
+	protected function removeUnit(unit u)
+		units.removeUnit(u)
+	
+	protected function getUnits() returns group
+		return units
+	
+	function getTypeControlled() returns int
+		return uid
+
+init
+	CreateTrigger()
+	..registerAnyUnitEvent(EVENT_PLAYER_UNIT_CONSTRUCT_FINISH)
+	..addAction(() -> begin
+		for PlayerBuilding pb in instances
+			let tu = GetConstructedStructure()
+			if pb.getTypeControlled() == tu.getTypeId()
+				pb.addUnit(tu)
+	end)
+	
+	CreateTrigger()
+	..registerAnyUnitEvent(EVENT_PLAYER_UNIT_DEATH)
+	..addAction(() -> begin
+		for PlayerBuilding pb in instances
+			let tu = GetTriggerUnit()
+			if pb.getTypeControlled() == tu.getTypeId()
+				pb.removeUnit(tu)
+	end)

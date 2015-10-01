@@ -1,0 +1,39 @@
+package Ensnare
+
+import ClosureTimers
+import PlayerAvatar
+
+constant buffId = 'B003'
+constant sfxPath = "Abilities\\Spells\\Orc\\Ensnare\\ensnareTarget.mdl"
+constant checkHowOften = 0.20
+constant maxPlayers = 12
+constant maxPosDif = 10.0
+
+//This basically adds a special effect to a PlayerAvatar unit while it has the snanre buff
+//You see, the ensnare SFX does not move with the hero on teleport otherwise
+
+effect array sfxs
+vec2 array oldPos
+
+init
+	for i = 0 to maxPlayers - 1
+		sfxs[i] = null
+		oldPos[i] = vec2(0, 0)
+	doPeriodically(checkHowOften, (CallbackPeriodic cb) -> begin
+		for i = 0 to maxPlayers - 1
+			if PlayerAvatar.instanceOfExists(players[i])
+				let u = PlayerAvatar.instanceOf(players[i]).getHero()
+				if u.hasAbility(buffId)
+					let posWasChanged = u.getPos().distToVec(oldPos[i]) > maxPosDif
+					if sfxs[i] == null or posWasChanged
+						if posWasChanged
+							sfxs[i].destr()
+						sfxs[i] = AddSpecialEffect(sfxPath, u.getX(), u.getY())
+				else if sfxs[i] != null
+					sfxs[i].destr()
+					sfxs[i] = null
+				oldPos[i] = u.getPos()
+			else if sfxs[i] != null
+				sfxs[i].destr()
+				
+	end)

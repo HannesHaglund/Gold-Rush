@@ -1,0 +1,125 @@
+package Emp
+
+import FlyingSensor
+import Fx
+import TempGroups
+import Utilities
+import InstantDummyCaster
+
+constant missileArt = "Doodads\\Cityscape\\Props\\CrystalLamp\\CrystalLamp.mdl"
+constant groundSfx = "Abilities\\Spells\\Undead\\AbsorbMana\\AbsorbManaBirthMissile.mdl"
+constant timeOutSfx = "Abilities\\Weapons\\Bolt\\BoltImpact.mdl"
+constant unitSfx = "Abilities\\Weapons\\Bolt\\BoltImpact.mdl"
+constant explodeSfx = "war3mapImported\\LightningNova.mdl"
+constant explodeSfx2 = "Abilities\\Spells\\Human\\Thunderclap\\ThunderClapCaster.mdl"
+constant missileSize = 0.8
+
+constant lifeTime = 10.0
+
+constant senseRange = 250.0
+constant explosionAoe = 300.0
+constant zTolerance = 50.0
+
+constant senseHowOften = 4
+
+constant zVelocity = 1600 * ANIMATION_PERIOD
+constant gravity = 75 * ANIMATION_PERIOD
+constant airTime = 2 * zVelocity / gravity
+
+constant spellId = 'A00H'
+constant chaserId = 'H000'
+constant slowCastId = 'A00L'
+
+constant revealAoe = 600.0
+constant fogModHowOften = 8
+constant fogModDestroyDelay = fogModHowOften * ANIMATION_PERIOD / 2
+
+constant disableTime = 0.4
+
+
+class Emp extends FlyingSensor
+	private Fx dummy
+	private player casterOwner
+	private integer maxBouncesLeft
+	private integer gold
+	private timer lifeTimer
+	
+	construct(unit caster, vec2 target)
+		super(senseRange, zTolerance, vec3(caster.getX(), caster.getY(), caster.getFlyHeight()), groundSfx, senseHowOften)
+		
+		let flyAngle = caster.getPos().angleTo(target)
+		let distance = caster.getPos().distToVec(target)
+		let velocity = distance / airTime
+		
+		this.casterOwner = caster.getOwner()
+		
+		this.dummy = new Fx(caster.getPos(), flyAngle, missileArt)
+		..setScale(missileSize)
+		
+		this.lifeTimer = getTimer()
+		..setData(this castTo int)
+		..start(lifeTime, () -> begin
+			let self = GetExpiredTimer().getData() castTo thistype
+			AddSpecialEffect(timeOutSfx, self.dummy.getX(), self.dummy.getY())
+			..destr()
+			destroy self
+		end)
+		
+		this.setCallback((Sensor s, unit u) -> begin
+			if u != dummy.getDummy() and not u.isFlying() and not u.isStructure() and u.isAlive()
+				this.explode()
+		end)
+		this.launch(vec3(velocity * flyAngle.cos(), velocity * flyAngle.sin(), zVelocity), gravity)
+		this.disableSensorFor(disableTime)
+			
+	ondestroy
+		dummy.hiddenDestroy()
+		lifeTimer.release()
+		
+	override function setPos(vec3 npos)
+		dummy.getDummy().setPos(vec2(npos.x, npos.y))
+		dummy.getDummy().setFlyHeight(npos.z, INT_LIMIT.toReal())
+		super.setPos(npos)
+			
+	override function setPos(vec2 npos)
+		setPos(vec3(npos.x, npos.y, getPos3d().z))
+	
+	private function explode()
+		AddSpecialEffect(explodeSfx, dummy.getX(), dummy.getY())
+		..destr()
+		AddSpecialEffect(explodeSfx2, dummy.getX(), dummy.getY())
+		..destr()
+		ENUM_GROUP.enumUnitsInRange(getPos(), explosionAoe)
+		for unit u in ENUM_GROUP
+			if not u.isStructure()
+				AddSpecialEffect(unitSfx, u.getX(), u.getY())
+				..destr()
+				if u.getOwner().isAllyOf(casterOwner)
+					UnitRemoveBuffs(u, false, true)
+				else
+					if u.getTypeId() != chaserId
+						InstantDummyCaster.castTarget(casterOwner, slowCastId, 1, "soulburn", u)
+					UnitRemoveBuffs(u, true, false)
+		safeDestroy()
+
+init
+	CreateTrigger()
+	..registerAnyUnitEvent(EVENT_PLAYER_UNIT_SPELL_EFFECT)
+	..addAction(() -> begin
+		if GetSpellAbilityId() == spellId
+			let caster = GetTriggerUnit()
+			let spellLoc = GetSpellTargetLoc()
+			let x = GetLocationX(spellLoc)
+			let y = GetLocationY(spellLoc)
+			let where = vec2(x, y)
+			new Emp(caster, where)
+			RemoveLocation(spellLoc)
+	end)
+	CreateTrigger()
+	..registerAnyUnitEvent(EVENT_PLAYER_UNIT_SPELL_CAST)
+	..addAction(() -> begin
+		if GetSpellAbilityId() == spellId
+			let caster = GetTriggerUnit()
+			caster.setAnimation("attack")
+			caster.queueAnimation("stand")
+	end)

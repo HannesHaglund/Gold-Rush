@@ -1,0 +1,243 @@
+package BomberFactory
+
+import PlayerBuilding
+import LinkedList
+import PlayerAvatar
+import ClosureTimers
+import TempGroups
+import Utilities
+
+constant buildingId = 'h006'
+
+constant hiddenPos = vec2(6000, 6000)
+
+constant bombFacing = angle(0)
+constant bombId = 'h007'
+constant bombOwner = players[12] //Neutral hostile
+constant updateHowOften = 1.0
+constant initialWait = 3.0
+constant maxPlayers = 12
+constant boomDistance = 300.0
+
+constant boomDummy = 'h008'
+constant boomDummyOwner = players[12] //Neutral hostile
+constant boomTime = 20.0
+
+constant buildingDestroyAoe = 300.0
+constant buildingDamage = 5000.0
+constant buildingDestroySfx = "war3mapImported\\NewGroundEX.mdl"
+constant buildingExceptionPlayer = players[12] //Neutral hostile
+
+constant selfDestructSfx = "war3mapImported\\NewGroundEX.mdl"
+
+constant buildingLife = 15.0
+
+constant explosionArmsModel = "war3mapImported\\NewGroundEX.mdl"
+constant explosionArmDistDif = 150.0
+constant explosionArmAngDif = (PI / 8).asAngleRadians()
+constant explosionArmsMin = 8
+constant explosionArmsMax = 12
+constant explosionArmsDelay = 1.5
+constant explosionArmDifTime = 0.2
+constant explosionArmLengthMin = 3
+constant explosionArmLengthMax = 8
+
+constant winSound = gg_snd_HeroTinkerPissed5
+constant deathSound = gg_snd_HeroTinkerYesAttack2
+
+constant chargeId = 'A000' //Will be removed to prevent abuse
+constant displacementId = 'A001'
+constant zepId = 'h005'
+
+constant zepMessage = "|cffff0000There is no escape!|r"
+constant zepSize = 14.0
+constant zepLife = 4.0
+constant zepFade = zepLife * 0.75
+
+constant pingR = 255
+constant pingG = 40
+constant pingB = 40
+constant pingTime = 8.0
+constant pingExtras = false
+
+constant declerationMsgTime = 10.0
+constant blowUpMsgTime = 5.0
+
+public abstract class BombersEndCallback
+	abstract function call(player winner)
+
+
+
+class Bomber
+	private static LinkedList<Bomber> instances = new LinkedList<Bomber>()
+	private static timer updateTimer = null
+	private static BombersEndCallback endCallback
+	private static boolean endCallbackExists = false
+	
+	static function setEnd(BombersEndCallback cb)
+		if endCallbackExists
+			destroy endCallback
+		endCallback = cb
+		endCallbackExists = true
+		
+	static function destroyAll()
+		for Bomber b in instances
+			destroy b
+		
+	protected static function checkForWin() returns boolean
+		//Checking for win...
+		let remaining = PlayerAvatar.loneRemainingPlayer()
+		if remaining != null or PlayerAvatar.countRemaining() == 0
+			PlayerAvatar.enableAutoBalance()
+			for Bomber b in instances
+				destroy b
+			if endCallbackExists
+				endCallback.call(remaining)
+			return true
+		else
+			return false
+		
+	private static function timerCallback()
+		//Revealing map
+		for i = 0 to maxPlayers-1
+			let fmod = CreateFogModifierRadius(players[i], FOG_OF_WAR_VISIBLE, 0, 0, 50000, false, false)
+			FogModifierStart(fmod)
+			doAfter(updateHowOften, () -> begin
+				FogModifierStop(fmod)
+				DestroyFogModifier(fmod)
+			end)
+		//Disabling abilities...
+		for i = 0 to maxPlayers - 1
+			if PlayerAvatar.instanceOfExists(players[i])
+				PlayerAvatar.instanceOf(players[i]).getHero().removeAbility(chargeId) //Removing charge to prevent abuse
+				PlayerAvatar.instanceOf(players[i]).getHero().removeAbility(displacementId) //Removing displacement to prevent abuse
+				//... and removing zeppelins and factories
+				ENUM_GROUP.enumUnitsInRange(vec2(0, 0), 50000)
+				for unit u in ENUM_GROUP
+					if u.isAlive() and (u.getTypeId() == zepId or u.getTypeId() == buildingId)
+						AddSpecialEffect(buildingDestroySfx, u.getX(), u.getY())
+						..destr()
+						CreateTextTag()
+						..setPos(vec3(u.getX(), u.getY(), 0.0))
+						..setPermanent(false)
+						..setLifespan(zepLife)
+						..setFadepoint(zepFade)
+						..setText(zepMessage, zepSize)
+						..setVisibility(true)
+						u.kill()
+		//Updating bombers
+		for Bomber b in instances
+			b.update()
+		//Checking win
+		checkForWin()
+			
+	private unit bomb
+	private player target
+	private player owner
+	private real sleepTimeLeft = initialWait
+	
+	construct(vec2 where, player target, player owner)
+		this.bomb = createUnit(bombOwner, bombId, where, bombFacing)
+		..setPathing(false)
+		this.target = target
+		this.owner = owner
+		instances.add(this)
+		if instances.getSize() == 1
+			if updateTimer == null
+				updateTimer = getTimer()
+				updateTimer.startPeriodic(updateHowOften, () -> timerCallback())
+	
+	ondestroy
+		bomb.remove()
+		instances.remove(this)
+		if instances.getSize() == 0
+			updateTimer.release()
+			updateTimer = null
+			
+	
+		
+	protected function update()
+		if sleepTimeLeft > 0
+			sleepTimeLeft -= updateHowOften
+			return
+	
+		if not PlayerAvatar.instanceOfExists(target) or not PlayerAvatar.instanceOfExists(owner)
+			//It no longer has a target
+			AddSpecialEffect(selfDestructSfx, bomb.getX(), bomb.getY())
+			..destr()
+			destroy this
+			return
+			
+		let targU = PlayerAvatar.instanceOf(target).getHero()
+		bomb.issuePointOrder("move", targU.getPos())
+		
+		if bomb.getPos().distToVec(targU.getPos()) < boomDistance //If target should be killed...
+			
+			//Eyecandy
+			let f = createUnit(boomDummyOwner, boomDummy, bomb.getPos(), bomb.getFacingAngle())
+			doAfter(boomTime, () -> f.remove())
+			let center = bomb.getPos()
+			doAfter(explosionArmsDelay, () -> begin
+				let arms = GetRandomInt(explosionArmsMin, explosionArmsMax)
+				for i = 1 to arms
+					let angleStart = (2*PI*i/arms).asAngleRadians()
+					let length = GetRandomInt(explosionArmLengthMin, explosionArmLengthMax)
+					var angle = angleStart
+					for j = 1 to length
+						if GetRandomInt(0, 1) == 0
+							angle += explosionArmAngDif
+						else
+							angle -= explosionArmAngDif
+						doAfter(explosionArmDifTime * (j-1), () -> begin
+							let fxx = center.x + explosionArmDistDif * j * angle.cos()
+							let fxy = center.y + explosionArmDistDif * j * angle.sin()
+							AddSpecialEffect(explosionArmsModel, fxx, fxy)
+							..destr()
+						end)
+			end)
+			
+			//Deleting player
+			if PlayerAvatar.instanceOfExists(target)
+				destroy PlayerAvatar.instanceOf(target)
+				printTimed(target.getNameColored() + " was blown to smithereens!", blowUpMsgTime)
+				StartSound(deathSound)
+			
+			//Has exploded. Begone!
+			destroy this
+			
+		else
+			//Destroying buildings
+			ENUM_GROUP.enumUnitsInRange(bomb.getPos(), buildingDestroyAoe)
+			for unit u in ENUM_GROUP
+				if u.isStructure() and u.getTypeId() != buildingId and u.isAlive() and not u.isInvulnerable() and u.getOwner() != buildingExceptionPlayer
+					bomb.damageTarget(u, buildingDamage)
+					AddSpecialEffect(buildingDestroySfx, u.getX(), u.getY())
+					..destr()
+		
+class BomberFactory extends PlayerBuilding
+	construct()
+		super(buildingId)
+		
+	protected override function addUnit(unit u)
+		PlayerAvatar.disableAutoBalance()
+		StartSound(winSound)
+		printTimed(u.getOwner().getNameColored() + " has succesfully constructed the " + u.getName() + ". His victory is imminent!", declerationMsgTime)
+		if GetLocalPlayer() != u.getOwner()
+			PingMinimapEx(u.getX(), u.getY(), pingTime, pingR, pingG, pingB, pingExtras)
+		for i = 0 to maxPlayers-1
+			//Setting up targets and bombs	
+			if players[i] != u.getOwner() and PlayerAvatar.instanceOfExists(players[i])
+				new Bomber(u.getPos(), players[i], u.getOwner())
+		u.setTimedLife(buildingLife)
+		super.addUnit(u)
+		
+		Bomber.checkForWin() //We need to do this manually, as no bombers will be created with a single player - it wont be checked.
+		
+public function setWinCallback(BombersEndCallback cb)
+	Bomber.setEnd(cb)
+	
+public function clearBombers()
+	Bomber.destroyAll()
+
+init
+	new BomberFactory()

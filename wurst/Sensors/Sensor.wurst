@@ -1,0 +1,70 @@
+package Sensor
+
+import public Updateable
+
+constant second_dummy_id = 'cdum'
+constant third_dummy_id = 'xdum'
+
+function doNothing()
+	skip
+
+public abstract class SensorCallback
+	abstract function call(Sensor source, unit target)
+	
+function filter() returns boolean
+	return false
+
+public class Sensor extends Updateable
+	private static Sensor lastThis
+	private constant filter = Condition(function groupCallback)
+
+	private vec2 pos
+	private real senseRange
+	private SensorCallback callback
+	
+	construct(real senseRange, vec2 pos, int checkHowOften)
+		super()
+		this.pos = pos
+		this.senseRange = senseRange
+		this.callback = (Sensor source, unit target) -> doNothing()
+		addUpdate(checkHowOften, (Updateable self) -> this.sense())
+
+	ondestroy
+		destroy callback
+		
+	function setCallback(SensorCallback callback)
+		destroy this.callback
+		this.callback = callback
+		
+	function setPos(vec2 npos)
+		pos = npos
+		
+	function getPos() returns vec2
+		return pos
+		
+	function getX() returns real
+		return pos.x
+		
+	function getY() returns real
+		return pos.y
+		
+	function setSanseRange(real newRange)
+		senseRange = newRange
+		
+	function getSenseRange() returns real
+		return senseRange
+		
+	protected function unitMeetsInteriorSensorRequirements(unit u) returns boolean
+		return u.isAlive() and u.getTypeId() != DUMMY_UNIT_ID and u.getTypeId() != second_dummy_id and u.getTypeId() != third_dummy_id
+	
+	private function senseCallback(unit picked)
+		if unitMeetsInteriorSensorRequirements(picked)
+			callback.call(this, picked)
+	
+	private static function groupCallback() returns boolean
+		lastThis.senseCallback(GetFilterUnit())
+		return false
+		
+	private function sense()
+		lastThis = this
+		GroupEnumUnitsInRange(ENUM_GROUP, pos.x, pos.y, senseRange, filter)

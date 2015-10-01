@@ -1,0 +1,39 @@
+package TreasurePosition
+
+import LinkedList
+
+public class TreasurePosition
+	vec2 where
+	angle facing
+	
+	construct(vec2 where, angle facing)
+		this.where = where
+		this.facing = facing
+		
+public class TreasurePositions
+	private TreasurePosition last
+	private LinkedList<TreasurePosition> positions
+	
+	construct()
+		positions = new LinkedList<TreasurePosition>()
+		
+	ondestroy
+		empty()
+		destroy positions
+
+	function add(vec2 pos, angle facing)
+		positions.add(new TreasurePosition(pos, facing))
+		
+	function getRandom() returns TreasurePosition
+		let p = positions.get(GetRandomInt(0, positions.getSize() - 1))
+		last = p
+		return p
+	
+	function getLastRandom() returns TreasurePosition
+		return last
+	
+	function empty()
+		for TreasurePosition p in positions
+			positions.remove(p)
+			destroy p
+			

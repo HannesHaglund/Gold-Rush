@@ -1,0 +1,6 @@
+package GoldmineBoss
+
+import KnockbackAttack
+
+init
+	registerType('canc', 1200.0, 1.9)

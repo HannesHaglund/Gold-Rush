@@ -1,0 +1,14 @@
+package Tower
+
+import PlayerAvatar
+import KnockbackFork
+
+constant uid = 'h001'
+constant kbDist = 300.0
+constant kbTime = 0.7
+
+init
+	PlayerAvatar.registerDamageCallback((PlayerAvatar source, unit target, unit attacker) -> begin
+		if attacker.getTypeId() == uid
+			new Knockback(target, kbDist, kbTime, attacker.getPos().angleTo(target.getPos()))
+	end)

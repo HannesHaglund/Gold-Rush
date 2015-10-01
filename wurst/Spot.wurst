@@ -1,0 +1,29 @@
+package Spot
+
+public class Spot
+	private vec2 where
+	private boolean taken
+	
+	construct(vec2 where)
+		this.where = where
+		this.taken = false
+		
+	construct(real x, real y)
+		this.where = vec2(x, y)
+		this.taken = false
+		
+	function isTaken() returns boolean
+		return taken
+		
+	function getPos() returns vec2
+		return where
+		
+	function take() returns boolean
+		if taken
+			return false
+		else
+			taken = true
+			return true
+		
+	function release()
+		taken = false

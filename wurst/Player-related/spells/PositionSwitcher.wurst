@@ -1,0 +1,50 @@
+package PositionSwitcher
+
+import Missile
+import Sensor
+import Utilities
+
+constant missileArt = "Abilities\\Spells\\Undead\\OrbOfDeath\\AnnihilationMissile.mdl"
+constant targetSfx = "Abilities\\Spells\\Items\\AIil\\AIilTarget.mdl"
+constant casterSfx = "Abilities\\Spells\\Other\\HowlOfTerror\\HowlCaster.mdl"
+constant senseAoe = 80.0
+constant missileHeight = 45.0
+constant distanceMax = 1800.0
+constant time = 1.9
+constant velocity = (distanceMax/time) * ANIMATION_PERIOD
+constant abilId = 'A001'
+
+
+public class PositionSwitcherMissile extends Missile
+	private unit caster
+	
+	construct(unit caster, angle ang)
+		super(missileArt, senseAoe, vec3(caster.getX(), caster.getY(), missileHeight), vec2(velocity*ang.cos(), velocity*ang.sin()), distanceMax, ang)
+		this.caster = caster
+		this.setCallback((Sensor source, unit target) -> begin
+			if target != caster
+				if not target.isInvulnerable() and not target.isStructure()
+					AddSpecialEffect(targetSfx, target.getX(), target.getY())
+					..destr()
+					AddSpecialEffect(casterSfx, caster.getX(), caster.getY())
+					caster.setPathing(false)
+					target.setPathing(false)
+					let tpos = target.getPos()
+					target.setPos(caster.getPos())
+					caster.setPos(tpos)
+					caster.setPathing(true)
+					target.setPathing(true)
+				safeDestroy()
+		end)
+		
+init
+	CreateTrigger()
+	..registerAnyUnitEvent(EVENT_PLAYER_UNIT_SPELL_EFFECT)
+	..addAction(() -> begin
+		if GetSpellAbilityId() == abilId
+			let caster = GetTriggerUnit()
+			let spellLoc = GetSpellTargetLoc()
+			let pos = vec2(GetLocationX(spellLoc), GetLocationY(spellLoc))
+			RemoveLocation(spellLoc)
+			new PositionSwitcherMissile(caster, caster.getPos().angleTo(pos))
+	end)

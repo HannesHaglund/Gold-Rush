@@ -1,0 +1,31 @@
+package AncientMissile
+
+import Missile
+import KnockbackFork
+import Sensor
+import Utilities
+import ClosureTimers
+
+constant missileArt = "Abilities\\Weapons\\AncientProtectorMissile\\AncientProtectorMissile.mdl"
+constant senseAoe = 50.0
+constant missileHeight = 70.0
+constant distanceMax = 1400.0
+constant velocity = 400 * ANIMATION_PERIOD
+constant dmg = 1.5
+constant missileScale = 2.0
+
+public class AncientMissile extends Missile
+	private unit caster
+	
+	construct(unit caster, angle ang, real kbDist, real kbTime)
+		super(missileArt, senseAoe, vec3(caster.getX(), caster.getY(), missileHeight), vec2(velocity * ang.cos(), velocity * ang.sin()), distanceMax, ang)
+		this.caster = caster
+		this.setCallback((Sensor source, unit target) -> begin
+			if target != caster and target.getOwner() != caster.getOwner()
+				if not target.isInvulnerable()
+					caster.damageTarget(target, dmg)
+					if not target.isStructure()
+						new Knockback(target, kbDist, kbTime, getFacingAngle())
+				source.safeDestroy()
+		end)
+		setScale(missileScale)

@@ -1,0 +1,15 @@
+package MissileAccel
+
+import Missile
+
+public class MissileAccel extends Missile
+	
+	private vec2 accel
+	
+	construct(string model, real senseRange, vec3 pos, vec2 velocity, vec2 accel, real maxDistance, angle facing)
+		super(model, senseRange, pos, velocity, maxDistance, facing)
+		this.accel = accel
+		
+	override function update()
+		setVelocity(getVelocity() + accel)
+		super.update()

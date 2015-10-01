@@ -1,0 +1,115 @@
+package IntroCinematic
+
+import public Cinematic
+
+constant fadeOutDur = 0.5
+constant portraitId = 'hmtm'
+constant portraitOwnerId = 1
+constant actorName = ""
+constant newSlideSound = gg_snd_QuestWhat
+constant startSound = gg_snd_Rescue
+constant color = "|cffb7c1ff"
+constant music = "Sound\\Music\\mp3Music\\ArthasTheme.mp3"
+
+function talk(Cinematic what, string line, real dur)
+	what.talk(portraitId, players[portraitOwnerId].getColor(), actorName, line, dur)
+	
+unit dyingGoblin
+unit killingHuman
+
+public function getIntro(CinematicCallback onEnd) returns Cinematic
+	var cin = new Cinematic(0.0, fadeOutDur, true)
+	cin.addEvent(0.05, (real d) -> begin
+		StopMusic(false)
+		PlayMusic(music)
+		CameraSetupApplyForceDuration(gg_cam_Camera_001, true, 0.0)
+		cin.addActor(0, 'N000', vec2(3775, 4060), (230.0).asAngleDegrees())
+		cin.addActor(0, 'uvei', vec2(776, 3000), angle(0))
+		cin.addActor(1, 'H000', vec2(-80, -550), (22.0).asAngleDegrees())
+		dyingGoblin = cin.addActor(2, 'N000', vec2(1600, 1280), (126.0).asAngleDegrees())
+		killingHuman = cin.addActor(3, 'H000', vec2(1590, 1475), (308.0).asAngleDegrees())
+	end)
+	cin.addEvent(12.0, (real d) -> begin
+		CameraSetupApplyForceDuration(gg_cam_Camera_002, true, d)
+		StartSound(startSound)
+		talk(cin, "Welcome to " + color + "Gold Rush|r, presented by Sverkerman and Hagge5 for Wc3-Vidya's 2015 map jam.|nAll players must press " + color + "ESC|r to skip this tutorial.", d)
+	end)
+	cin.addEvent(10.0, (real d) -> begin
+		CameraSetupApplyForceDuration(gg_cam_Camera_003, true, d)
+		StartSound(newSlideSound)
+		talk(cin, "The genre of the map is Tag, but only one winner will be determined.|nPlayers play as either a " + color +"Goblin|r or a " + color +"Human|r.", d)
+	end)
+	cin.addEvent(10.0, (real d) -> begin
+		CameraSetupApplyForceDuration(gg_cam_Camera_004, true, d)
+		StartSound(newSlideSound)
+		talk(cin, "The win condition is achieved, if you as a " + color +"Goblin|r are able to build the " + color + "Death Inducer Producer|r, which does require quite a bit of gold.", d)
+	end)
+	cin.addEvent(9.0, (real d) -> begin
+		CameraSetupApplyForceDuration(gg_cam_Camera_005, true, 3.0)
+		StartSound(newSlideSound)
+		talk(cin, "Gold is attained from " + color + "passive income|r, from mining " + color + "Gold Veins|r such as this one, and...", d)
+	end)
+	cin.addEvent(11.5, (real d) -> begin
+		CameraSetupApplyForceDuration(gg_cam_Camera_006, true, 4.0)
+		StartSound(newSlideSound)
+		talk(cin, "... from " + color + "Gold Mines|r who spawn in designated locations such as this one.|nThese earn you a lot more gold than veins, but their spawn is announced, so there surely will be competitors.", d)
+	end)
+	cin.addEvent(10.0, (real d) -> begin
+		StartSound(newSlideSound)
+		talk(cin, color + "Goblins|r also drop their gold when slain by " + color + "Human|r hands. Be sure to help them towards their demise, so that you can take it for yourself.", d)
+	end)
+	cin.addEvent(5.0, (real d) -> begin
+		CameraSetupApplyForceDuration(gg_cam_Camera_013, true, d)
+		StartSound(newSlideSound)
+		talk(cin, "When a " + color + "Goblin|r dies, the " + color + "Human|r who killed him becomes a " + color +"Goblin|r and vise versa. A " + color + "Goblin|r can't kill a " + color +"Human|r, nor alone other " + color + "Goblins|r.", d+6.5)
+	end)
+	cin.addEvent(0.5, (real d) -> begin
+		killingHuman.setAnimation("attack")
+		killingHuman.queueAnimation("stand")
+	end)
+	cin.addEvent(1.0, (real d) -> begin
+		dyingGoblin.setAnimation("death")
+	end)
+	cin.addEvent(5.0, (real d) -> begin
+		CameraSetupApplyForceDuration(gg_cam_Camera_007, true, d)
+		dyingGoblin.setColor(players[3].getColor())
+		killingHuman.setColor(players[2].getColor())
+	end)
+	cin.addEvent(7.0, (real d) -> begin
+		CameraSetupApplyForceDuration(gg_cam_Camera_008, true, d+2.0)
+		StartSound(newSlideSound)
+		talk(cin, "The new " + color + "Human|r spawns in this castle, while the new " + color + "Goblin|r spawns at a random location.|nNote that you must become a " + color + "Goblin|r again to win.", d + 4.0)
+	end)
+	cin.addEvent(4.0, (real d) -> begin
+		CameraSetupApplyForceDuration(gg_cam_Camera_009, true, d)
+	end)
+	cin.addEvent(9.0, (real d) -> begin
+		CameraSetupApplyForceDuration(gg_cam_Camera_010, true, d)
+		StartSound(newSlideSound)
+		talk(cin, "You'll rely on good ability usage to both kill, survive and screw over other " + color + "Goblins|r for that precious gold.", d+ 2.0)
+	end)
+	cin.addEvent(2.0, (real d) -> begin
+		CameraSetupApplyForceDuration(gg_cam_Camera_011, true, d + 9.0)
+	end)
+	cin.addEvent(8.0, (real d) -> begin
+		CameraSetupApplyForceDuration(gg_cam_Camera_011, true, d)
+		StartSound(newSlideSound)
+		talk(cin, "There will be an initial " + color + "30 second period|r before the first " + color + "Humans|r are randomly chosen from the existing players.", d+2.0)
+	end)
+	cin.addEvent(2.0, (real d) -> begin
+		CameraSetupApplyForceDuration(gg_cam_Camera_012, true, d + 4.0)
+	end)
+	cin.addEvent(5.0, (real d) -> begin
+		StartSound(newSlideSound)
+		talk(cin, "Now then! Let the game begin!", d)
+	end)
+	cin.addEvent(0.0, (real d) -> begin
+		CameraSetupApplyForceDuration(gg_cam_Camera_014, true, d)
+	end)
+	cin.addEvent(0.0, onEnd)
+	cin.setSkip((real d) -> begin
+		ClearTextMessages()
+		CameraSetupApplyForceDuration(gg_cam_Camera_014, true, d)
+		onEnd.call(0.0)
+	end)
+	return cin

@@ -1,0 +1,58 @@
+package Creep
+
+import CoinExplosion
+
+constant owner = players[12]
+
+constant cexplMaxVelo = 240 * ANIMATION_PERIOD
+constant cexplMaxVeloZ = 1000 * ANIMATION_PERIOD
+constant cexplMinVeloZ = 800 * ANIMATION_PERIOD
+constant cexplInvulFor = 0.5
+constant cexplMaxCoinValue = 1
+constant cexplMinCoinValue = 2
+
+
+public class Creep
+
+	protected unit dummy
+	private trigger deathTrigger
+	private int goldValue
+	
+	construct(integer uid, vec2 pos, angle facing, int value)
+		goldValue = value
+		dummy = createUnit(owner, uid, pos, facing)
+		dummy.setUserData(this castTo integer)
+		deathTrigger = CreateTrigger()
+		..registerUnitEvent(dummy, EVENT_UNIT_DEATH)
+		..addAction(() -> begin
+			let self = GetTriggerUnit().getUserData() castTo thistype
+			self.loot()
+			destroy self
+		end)
+		
+	ondestroy
+		deathTrigger.destr()
+		if dummy.isAlive()
+			dummy.kill()
+	
+	protected function getDummy() returns unit
+		return dummy
+	
+	protected function loot()
+		let pos = vec3(dummy.getPos().x, dummy.getPos().y, 0)
+		coinExplosion(goldValue, pos, cexplMinCoinValue, cexplMaxCoinValue, cexplMaxVelo, cexplMinVeloZ, cexplMaxVeloZ, cexplInvulFor)
+
+	protected function resetDeathTrigger()
+		deathTrigger.destr()
+		initDeathTrigger()
+	
+	private function initDeathTrigger()
+		deathTrigger = CreateTrigger()
+		..registerUnitEvent(dummy, EVENT_UNIT_DEATH)
+		..addAction(() -> begin
+			let self = GetTriggerUnit().getUserData() castTo thistype
+			let killer = GetKillingUnit()
+			if killer != self.dummy and killer != null
+				self.loot()
+			destroy self
+		end)

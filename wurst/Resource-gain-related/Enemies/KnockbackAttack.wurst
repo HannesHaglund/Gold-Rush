@@ -1,0 +1,47 @@
+package KnockbackAttack
+
+import KnockbackFork
+import Utilities
+import ArrayList
+import PlayerAvatar
+
+constant castDistance = 110.0
+constant aoe = 125.0
+constant aoeSfx = "Abilities\\Spells\\Orc\\WarStomp\\WarStompCaster.mdl"
+
+class RegisteredType
+	int uid
+	real distance
+	real time
+	
+
+	construct(int uid, real distance, real time)
+		this.uid = uid
+		this.distance = distance
+		this.time = time
+
+ArrayList<RegisteredType> types = new ArrayList<RegisteredType>()
+
+public function registerType(int uid, real distance, real time)
+	types.add(new RegisteredType(uid, distance, time))
+
+function findType(int uid) returns RegisteredType
+	for RegisteredType t in types
+		if t.uid == uid
+			return t
+	printError("Could not find any RegisteredType for given uid.")
+	return types.get(0)
+	
+function isRegistered(int uid) returns boolean
+	for RegisteredType t in types
+		if t.uid == uid
+			return true
+	return false
+	
+function damageDetectFunc(unit target, unit attacker)
+	if isRegistered(attacker.getTypeId()) and not target.isInvulnerable() and not target.isStructure()
+		let typ = findType(attacker.getTypeId())
+		new Knockback(target, typ.distance, typ.time, attacker.getPos().angleTo(target.getPos()))
+
+init
+	PlayerAvatar.registerDamageCallback((PlayerAvatar source, unit target, unit attacker) -> damageDetectFunc(target, attacker))

@@ -1,0 +1,138 @@
+package Zeppelin
+
+import PlayerBuilding
+import Utilities
+import ClosureTimers
+import Spots
+import FlyingSensor
+import Fx
+import TempGroups
+
+//TODO: Can't for the life of me get 3d sounds working
+
+//For the building
+constant aoe = 200.0
+constant uPeriod = 4
+constant uid = 'h005'
+constant hiddenLoc = vec2(5800, 5800)
+
+//sound
+constant soundAoe = 1000.0
+
+//For the missile
+constant senseRange = 0.0
+constant zTolerance = 0.0
+constant groundSfx = "war3mapImported\\NewGroundEX.mdl"
+constant senseHowOften = 800 //We don't need to sense
+constant zVelocity = 1100 * ANIMATION_PERIOD
+constant gravity = 20 * ANIMATION_PERIOD
+constant airTime = 2 * zVelocity / gravity
+constant missileArt = "units\\creeps\\GoblinZeppelin\\GoblinZeppelin.mdl"
+constant startHeight = 0.0
+constant disableTime = 0.3
+constant revealPeriod = 4
+constant revealAoe = 1600.0
+constant revealDurMultiplier = 2.0
+constant revealDur = revealPeriod * revealDurMultiplier * ANIMATION_PERIOD
+constant followPantime = 0.01
+
+function randomSpawnSound() returns sound
+	let rng = GetRandomInt(0, 3)
+	switch rng
+		case 0
+			return gg_snd_GoblinZeppelinReady1
+		case 1
+			return gg_snd_GoblinZeppelinWhat3
+		case 2
+			return gg_snd_GoblinZeppelinYes2
+		case 3
+			return gg_snd_GoblinZeppelinYes3
+		default //Unreachable
+			return null
+
+class FlyingZeppelin extends FlyingSensor
+	private Fx dummy
+	private unit unhideTarget
+	
+	construct(unit unhideTarget, vec2 start, vec2 target)
+		super(senseRange, zTolerance, vec3(start.x, start.y, startHeight), groundSfx, senseHowOften)
+		
+		let flyAngle = start.angleTo(target)
+		let distance = start.distToVec(target)
+		let velocity = distance / airTime
+		
+		this.unhideTarget = unhideTarget 
+		this.dummy = new Fx(start, flyAngle, missileArt)
+		..setXYAngle(flyAngle)
+		..setOwner(unhideTarget.getOwner(), true)
+		
+	
+		
+		let snd = randomSpawnSound()
+		ENUM_GROUP.enumUnitsInRange(start, soundAoe)
+		for unit u in ENUM_GROUP
+			if u.getOwner() == GetLocalPlayer()
+				StartSound(snd)
+		
+		this.setGroundCallback((FlyingSensor source) -> begin
+			unhideTarget.setPos(getPos())
+			unhideTarget.unpause()
+			unhideTarget.show()
+			unhideTarget.getOwner().select(unhideTarget)
+			safeDestroy()
+		end)
+		this.addUpdate(revealPeriod, (Updateable ud) -> begin
+			let fmod = CreateFogModifierRadius(unhideTarget.getOwner(), FOG_OF_WAR_VISIBLE, getPos().x, getPos().y, revealAoe, false, false)
+			FogModifierStart(fmod)
+			doAfter(revealDur, () -> begin
+				FogModifierStop(fmod)
+				DestroyFogModifier(fmod)
+			end)
+		end)
+		this.launch(vec3(velocity * flyAngle.cos(), velocity * flyAngle.sin(), zVelocity), gravity)
+		this.disableSensorFor(disableTime)
+			
+	ondestroy
+		destroy dummy
+		
+	override function setPos(vec3 npos)
+		dummy.getDummy().setPos(vec2(npos.x, npos.y))
+		dummy.getDummy().setFlyHeight(npos.z, INT_LIMIT.toReal())
+		unhideTarget.getOwner().panCamToTimed(dummy.getDummy(), followPantime)
+		super.setPos(npos)
+			
+	override function setPos(vec2 npos)
+		setPos(vec3(npos.x, npos.y, getPos3d().z))
+
+
+Spots spots
+boolean hasSpots = false
+
+public function zeppelinSetSpots(Spots nspots)
+	spots = nspots
+	hasSpots = true
+
+class Zeppelin extends PlayerBuilding
+	
+	construct()
+		super(uid)
+		this.addUpdate(uPeriod, (Updateable updateable) -> begin
+			for unit zep in getUnits()
+				ENUM_GROUP.enumUnitsInRange(zep.getPos(), aoe)
+				var noTargetFound = true
+				for unit target in ENUM_GROUP
+					if noTargetFound and target.isAlive() and target.isHero() and target.getOwner() == zep.getOwner() and hasSpots and spots.anyIsFree()
+						let tpos = spots.getRandomAsVec()
+						
+						new FlyingZeppelin(target, target.getPos(), tpos)
+						
+						target.setPos(hiddenLoc)
+						target.pause()
+						target.hide()
+						this.removeUnit(zep)
+						zep.remove()
+						noTargetFound = false
+		end)
+
+init
+	new Zeppelin()	

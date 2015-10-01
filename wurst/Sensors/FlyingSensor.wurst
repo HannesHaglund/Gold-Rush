@@ -1,0 +1,93 @@
+package FlyingSensor
+
+import Updateable
+import public Sensor
+
+constant verySmallNumber = 0.00000001
+
+function doNothing()
+	skip
+
+public abstract class GroundHitCallback
+	abstract function call(FlyingSensor source)
+
+public class FlyingSensor extends Sensor
+	protected real zToleranceRange
+	private real zPos
+	private vec3 currentVelocity
+	private real gravity
+	private string groundHitSfx
+	private integer disableTicksLeft
+	private GroundHitCallback callback
+	private boolean flying
+	
+	
+	construct(real senseRange, real zToleranceRange, vec3 pos, string groundHitSfx, int checkHowOften)
+		super(senseRange, vec2(pos.x, pos.y), checkHowOften)
+		this.zPos = pos.z + verySmallNumber
+		this.zToleranceRange = zToleranceRange
+		this.groundHitSfx = groundHitSfx
+		this.currentVelocity = vec3(0,0,0)
+		this.gravity = 0
+		this.disableTicksLeft = 0
+		this.callback = (FlyingSensor s) -> doNothing()
+		this.flying = false
+		addUpdate(1, (Updateable self) -> this.updateFlight())
+		
+	ondestroy
+		destroy callback
+		
+	function setGroundCallback(GroundHitCallback callback)
+		destroy this.callback
+		this.callback = callback
+		
+	function setPos(vec3 npos)
+		super.setPos(vec2(npos.x, npos.y))
+		zPos = npos.z
+	
+	function getPos3d() returns vec3
+		let sp = super.getPos()
+		return vec3(sp.x, sp.y, zPos)
+		
+	function getVelocity() returns vec3
+		return currentVelocity
+		
+	function getGravity() returns real
+		return gravity
+	
+	function launch(vec3 velocity, real gravity)
+		zPos += verySmallNumber
+		currentVelocity = velocity
+		this.gravity = gravity
+		flying = true
+		
+	function getZ() returns real
+		return zPos
+		
+	function disableSensorFor(real time)
+		disableTicksLeft = (time / ANIMATION_PERIOD).round()
+		
+		
+	
+	protected override function unitMeetsInteriorSensorRequirements(unit u) returns boolean
+		if not super.unitMeetsInteriorSensorRequirements(u)
+			return false
+		else
+			return disableTicksLeft <= 0 and (zPos - u.getFlyHeight()).abs() < zToleranceRange
+	
+	protected function updateFlight()
+		if disableTicksLeft > 0
+			disableTicksLeft--
+		if not flying
+			return
+		if currentVelocity.z < 0 and zPos <= 0 //If hit ground...
+			setPos(vec3(super.getPos().x, super.getPos().y, 0))
+			AddSpecialEffect(groundHitSfx, getPos().x, getPos().y)
+			..destr()
+			flying = false
+			callback.call(this)
+		else
+			currentVelocity.z -= gravity
+			setPos(getPos3d() + currentVelocity)
+			
+	

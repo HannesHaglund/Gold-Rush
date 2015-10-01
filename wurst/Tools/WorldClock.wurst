@@ -1,0 +1,17 @@
+package WorldClock
+
+timer t = getTimer()
+integer tick = 0
+constant max = INT_LIMIT - 1
+
+public function start()
+	t.startPeriodic(ANIMATION_PERIOD, () -> begin
+		tick = tick + 1
+		if tick == max
+			tick = 1 
+	end)
+
+public function currentWorldTick() returns integer
+	if tick == 0
+		start()
+	return tick

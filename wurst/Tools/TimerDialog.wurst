@@ -1,0 +1,25 @@
+package TimerDialog
+
+
+public function createTimerDialog(timer t) returns timerdialog
+	return CreateTimerDialog(t)
+	
+public function timerdialog.destr()
+	DestroyTimerDialog(this)
+
+public function timerdialog.show()
+	TimerDialogDisplay(this, true)
+
+public function timerdialog.hide()
+	TimerDialogDisplay(this, false)
+
+public function timerdialog.showPlayer(player who)
+	if GetLocalPlayer() == who
+		this.show()
+		
+public function timerdialog.hidePlayer(player who)
+	if GetLocalPlayer() == who
+		this.hide()
+		
+public function timerdialog.setTitle(string title)
+	TimerDialogSetTitle(this, title)

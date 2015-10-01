@@ -1,0 +1,36 @@
+package Kicking
+
+import PlayerAvatar
+
+constant msgTime = 8.0
+
+force kickedPlayers = CreateForce()
+
+public function player.wasKicked() returns boolean
+	for player p in kickedPlayers
+		if p == this
+			return true
+	return false
+
+init
+	CreateTrigger()
+	..registerPlayerChatEvent(players[0], "-kick ", false)
+	..addAction(() -> begin
+		let str = GetEventPlayerChatString()
+		if str.substring(0, 6) == "-kick "
+			let whoId = str.substring(6, 8).toInt() - 1
+			if whoId > 0 and whoId < 12 and players[whoId].getSlotState() == PLAYER_SLOT_STATE_PLAYING
+				let who = players[whoId]
+				if not who.wasKicked()
+					CustomDefeatDialogBJ(who, "You were kicked. Sorry!")
+					printTimed(who.getNameColored() + " was kicked from the game!", msgTime)
+					who.subGold(who.getGold())
+					if PlayerAvatar.instanceOfExists(who)
+						destroy PlayerAvatar.instanceOf(who)
+					ForceAddPlayer(kickedPlayers, who)
+				else
+					printTimedToPlayer("Error: Player already kicked", msgTime, GetTriggerPlayer())
+			else
+				printTimedToPlayer("Error: Invalid player: " + (whoId + 1).toString() + ".", msgTime, GetTriggerPlayer())
+				
+	end)

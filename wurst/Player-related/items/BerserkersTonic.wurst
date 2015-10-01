@@ -1,0 +1,13 @@
+package BerserkersTonic
+
+constant iid = 'I006'
+
+init
+	CreateTrigger()
+	..registerAnyUnitEvent(EVENT_PLAYER_UNIT_USE_ITEM)
+	..addAction(() -> begin
+		let itmt = GetItemTypeId(GetManipulatedItem())
+		if itmt == iid
+			let tu = GetTriggerUnit()
+			UnitResetCooldown(tu)
+	end)

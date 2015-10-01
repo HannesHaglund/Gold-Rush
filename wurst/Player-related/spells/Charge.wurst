@@ -1,0 +1,75 @@
+package Charge
+
+import ClosureForGroups
+import CustomKnockback
+import KnockbackFork
+import WorldClock
+import InstantDummyCaster
+import Utilities
+
+constant spellId ='A000'
+constant distance = 3000.0
+constant time = 4.0
+constant walkAnimationTime = 0.567
+constant pauseWait = 0.5 * ANIMATION_PERIOD
+constant faceMultiplier = 0.1
+constant sfxHowOften = 2
+constant sfx = "Objects\\Spawnmodels\\Undead\\ImpaleTargetDust\\ImpaleTargetDust.mdl"
+constant stunAbilId = 'A003'
+constant endAoE = 350.0
+constant walkAnimTime = 0.567
+constant setWalkHowOften = (0.567 / ANIMATION_PERIOD).round()
+constant startSfx = "Abilities\\Spells\\NightElf\\BattleRoar\\RoarCaster.mdl"
+constant endSfx = "Abilities\\Spells\\Orc\\WarStomp\\WarStompCaster.mdl"
+constant targetSfx = "Abilities\\Spells\\Human\\StormBolt\\StormBoltMissile.mdl"
+
+constant buildingDamage = 100.0
+
+constant exceptionPlayer = players[12] //Neutral hostile
+
+constant pauseAbilId ='A00F'
+constant pauseBuffId = 'B002'
+
+init
+	CreateTrigger()
+	..registerAnyUnitEvent(EVENT_PLAYER_UNIT_SPELL_EFFECT)
+	..addAction(() -> begin
+		if GetSpellAbilityId() == spellId
+			let caster = GetTriggerUnit()
+			let spellLoc = GetSpellTargetLoc()
+			let where = vec2(GetLocationX(spellLoc), GetLocationY(spellLoc))
+			RemoveLocation(spellLoc)
+			
+			InstantDummyCaster.castTarget(caster.getOwner(), pauseAbilId, 1, "thunderbolt", caster) //Need to wait slightly.
+			new CustomKnockback(caster, distance, time, caster.getPos().angleTo(where))
+			..setEnd((CustomKnockback kb, StopReason reason) -> begin
+				caster.setAnimation("stand")
+				if reason != StopReason.DISTANCE_REACH
+					caster.removeAbility(pauseBuffId) //Removes the pause buff
+					AddSpecialEffect(endSfx, caster.getX(), caster.getY())
+					..destr()
+					forUnitsInRange(caster.getPos(), endAoE, (unit enumU) -> begin
+						if enumU != caster and enumU.isAlive() and enumU.getOwner() != exceptionPlayer
+							if enumU.isStructure()
+								caster.damageTarget(enumU, buildingDamage)
+							InstantDummyCaster.castTarget(caster.getOwner(), stunAbilId, 1, "thunderbolt", enumU)
+							enumU.addEffect(targetSfx, "chest")
+							..destr()
+					end)
+			end)
+			..setUpdate((CustomKnockback kb) -> begin
+				if currentWorldTick() % sfxHowOften == 0
+					AddSpecialEffect(sfx, caster.getX(), caster.getY())
+					..destr()
+				if currentWorldTick() % setWalkHowOften * 2 == 0
+					caster.setAnimation("walk")
+			end)
+	end)
+	CreateTrigger()
+	..registerAnyUnitEvent(EVENT_PLAYER_UNIT_SPELL_CAST)
+	..addAction(() -> begin
+		if GetSpellAbilityId() == spellId
+			let caster = GetTriggerUnit()
+			AddSpecialEffect(startSfx, caster.getX(), caster.getY())
+			..destr()
+	end)

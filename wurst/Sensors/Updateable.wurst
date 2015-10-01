@@ -1,0 +1,148 @@
+package Updateable
+
+import HashList
+import ArrayList
+import LinkedList
+import ClosureTimers
+
+//An update function
+public abstract class UpdateCallback
+	abstract function call(Updateable source)
+
+//Holds updates sharing a timer interval
+class TicktypeCallbacks
+	private LinkedList<Update> uds
+	private timer t
+	private integer whichPeriod
+	
+	construct(int whichPeriod)
+		uds = new LinkedList<Update>()
+		t = null
+		this.whichPeriod = whichPeriod
+	
+	function getSize() returns int
+		return uds.getSize()
+		
+	function addUd(Update ud)
+		uds.add(ud)
+		if uds.getSize() == 1
+			if t == null
+				t = getTimer()
+				t.setData(this castTo int)
+				t.startPeriodic(whichPeriod * ANIMATION_PERIOD, () -> begin
+					let self = GetExpiredTimer().getData() castTo thistype
+					for Update u in self.uds
+						u.cb.call(u.target)
+				end)
+			
+	function remove(Update what)
+		uds.remove(what)
+		if uds.getSize() == 0
+			t.release()
+			t = null
+	
+	ondestroy
+		if uds.getSize() > 0
+			printError("Severe! Deleted a non-empty TickTypeCallbacks. Memory leaks may occur, and updates will cease.")
+			t.release()
+		destroy uds
+
+//Holds all updates
+class Manager
+	private HashList<TicktypeCallbacks> callbacks
+	private ArrayList<integer> availPeriods
+	
+	construct()
+		 callbacks = new HashList<TicktypeCallbacks>()
+		 availPeriods = new ArrayList<integer>()
+	
+	function isNewPeriod(int period) returns boolean
+		for integer i in availPeriods
+			if i == period
+				return false
+		return true
+	
+	function addUpdate(integer period, Update what) returns Update
+		what.period = period
+		if isNewPeriod(period)
+			availPeriods.add(period)
+			callbacks.set(period, new TicktypeCallbacks(period))
+		callbacks.get(period).addUd(what)
+		return what
+	
+	function removeUpdateChain(Update what)
+		let hasPrev = what.hasPrev()
+		if hasPrev
+			let prev = what.prev
+			removeUpdateChain(prev)
+		callbacks.get(what.period).remove(what)
+		destroy what
+		
+	function disableUpdateChain(Update what)
+		let hasPrev = what.hasPrev()
+		if hasPrev
+			let prev = what.prev
+			disableUpdateChain(prev)
+		what.disable()
+		destroy what
+		
+//An update. Somewhat keeps track of where it is, too
+class Update
+	Updateable target
+	UpdateCallback cb
+	Update prev
+	boolean hasPrev
+	integer period
+	
+	construct(Update prev, Updateable target, UpdateCallback cb)
+		this.prev = prev
+		this.hasPrev = true
+		this.cb = cb
+	
+	construct(Updateable target, UpdateCallback cb)
+		this.hasPrev = false
+		this.cb = cb
+		
+	function hasPrev() returns boolean
+		return hasPrev
+		
+	function disable()
+		destroy cb
+		cb = (Updateable u) -> begin
+		end
+	
+	ondestroy
+		destroy cb
+
+//The manager all updatebles's updates are saved in
+Manager mainManager = new Manager()
+
+//The updateable to overwrite
+public class Updateable
+	private Update lastConfUpdate
+	private boolean hasUpdates
+	private boolean wantDestroy
+	
+	construct()
+		hasUpdates = false
+		wantDestroy = false
+		
+	ondestroy
+		if hasUpdates
+			mainManager.removeUpdateChain(lastConfUpdate)
+	
+		
+	protected function safeDestroy()
+		if not wantDestroy
+			wantDestroy = true
+			doAfter(ANIMATION_PERIOD * 0.5, () -> destroy this)
+	
+	protected function addUpdate(integer period, UpdateCallback callback)
+		if hasUpdates
+			let u = mainManager.addUpdate(period, new Update(lastConfUpdate, this, callback))
+			lastConfUpdate = u
+		else
+			let u = mainManager.addUpdate(period, new Update(this, callback))
+			hasUpdates = true
+			lastConfUpdate = u
+		

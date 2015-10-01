@@ -1,0 +1,41 @@
+package CoinSuck
+
+import PlayerAvatar
+import Coin
+
+constant buffId = 'B001'
+constant uTime = ANIMATION_PERIOD
+constant veloAtDist500PerUpdate = 60 * ANIMATION_PERIOD
+constant velo = veloAtDist500PerUpdate * 500
+constant heuristicCutoff = 2000.0
+constant heightMin = 999999.0 //Ignore height
+constant playerCount  = 12
+
+function abs(real n) returns real
+	if n < 0
+		return -n
+	else
+		return n
+
+init
+	let t = getTimer()
+	t.startPeriodic(uTime, () -> begin
+		for i = 0 to playerCount - 1
+			if PlayerAvatar.instanceOfExists(players[i])
+				let hero = PlayerAvatar.instanceOf(players[i]).getHero()
+				if hero.hasAbility(buffId)
+					CoinCallback cb = (Coin coin) -> begin
+						if coin.getZ() < heightMin
+							let heuristic = abs(coin.getX() - hero.getX()) + abs(coin.getY() - hero.getY())
+							if heuristic < heuristicCutoff
+								//We'll use the heuristic instead of the distance formula for all calcs because it's faster and the result is similar
+								let dif = velo / heuristic 
+								let ang = coin.getPos().angleTo(hero.getPos())
+								if dif < heuristic
+									coin.setPos(vec2(coin.getX() + dif*ang.cos(), coin.getY() + dif*ang.sin()))
+								else
+									coin.setPos(hero.getPos())
+					end
+					Coin.forEach(cb)
+					destroy cb
+	end)

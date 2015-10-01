@@ -1,0 +1,49 @@
+package Spots
+
+import LinkedList
+import public Spot
+
+constant randomAttemptsMax = 50
+
+public class Spots
+	private LinkedList<Spot> spots
+	
+	construct()
+		spots = new LinkedList<Spot>()
+		
+	ondestroy
+		for Spot spot in spots
+			destroy spot
+		destroy spots
+		
+	function add(vec2 point)
+		spots.add(new Spot(point))
+		
+	function anyIsFree() returns boolean
+		for Spot spot in spots
+			if not spot.isTaken()
+				return true
+		return false
+	
+	function isEmpty() returns boolean
+		return spots.getSize() == 0
+	
+	function getRandom() returns Spot
+		if isEmpty()
+			printError("Tried to get a vein spot from an empty set.")
+		var picksLeft = randomAttemptsMax
+		while picksLeft > 0
+			let random = spots.get(GetRandomInt(0, spots.getSize() - 1))
+			if not random.isTaken()
+				return random
+			picksLeft --
+		//Just pick the first one...
+		for Spot spot in spots
+			if not spot.isTaken()
+				return spot
+		//Nothing is free...
+		printError("Could not find a free Spot.")
+		return spots.get(0)
+		
+	function getRandomAsVec() returns vec2
+		return getRandom().getPos()

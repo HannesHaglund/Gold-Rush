@@ -1,0 +1,89 @@
+package Coin
+
+import Sensor
+import ClosureTimers
+
+import FlyingSensor
+import Utilities
+import PlayerAvatar
+import LinkedList
+
+constant dummyId = 'cdum'
+constant senseHowOften = 4
+constant senseRange = 60.0
+constant zTolerance = 40.0
+constant bounceChance = 1.1
+constant groundHitSfx = "Abilities\\Spells\\Other\\Transmute\\GoldBottleMissile.mdl"
+constant maxBounces = 3
+constant magnitudeBounceFactor = 0.6
+constant pickUpSfx = "Abilities\\Spells\\Other\\Transmute\\PileofGold.mdl"
+constant selfDeathSfx = "Abilities\\Spells\\Orc\\FeralSpirit\\feralspirittarget.mdl"
+constant lifeTime = 20.0
+constant gravity = 30 * ANIMATION_PERIOD
+
+public abstract class CoinCallback
+	abstract function call(Coin coin)
+
+public class Coin extends FlyingSensor
+
+	private static LinkedList<Coin> instances = new LinkedList<Coin>
+	
+	static function clearAll()
+		for Coin c in instances
+			destroy c
+	
+	private unit dummy
+	private integer gold
+	private timer lifeTimer
+	
+	construct(vec3 pos, integer gold, angle flyAngle, real velocity, real zVelocity)
+		super(senseRange, zTolerance, pos, groundHitSfx, senseHowOften)
+		this.dummy = createUnit(DUMMY_PLAYER, dummyId, pos, GetRandomReal(0, 2*PI).asAngleRadians())
+		this.dummy.setPathing(false)
+		this.dummy.pause()
+		this.gold = gold
+		instances.add(this)
+		this.lifeTimer = getTimer()
+		..setData(this castTo int)
+		..start(lifeTime, function timerCallback)
+		this.setCallback((Sensor s, unit u) -> this.pickUp(u))
+		this.launch(vec3(velocity * flyAngle.cos(), velocity * flyAngle.sin(), zVelocity), gravity)
+		
+	
+	ondestroy
+		if dummy.isAlive()
+			dummy.kill()
+		instances.remove(this)
+		lifeTimer.release()
+	
+	function getValue() returns int
+		return gold
+	
+	function scale(real scale)
+		dummy.setScale(scale)
+		
+	override function setPos(vec3 npos)
+		dummy.setXYZ(npos)
+		super.setPos(npos)
+			
+	override function setPos(vec2 npos)
+		setPos(vec3(npos.x, npos.y, getPos3d().z))
+	
+	private function pickUp(unit picker)
+		if PlayerAvatar.instanceOfExists(picker.getOwner())
+			let avatar = PlayerAvatar.instanceOf(picker.getOwner())
+			if avatar.isRunner() and picker.isAlive()
+				AddSpecialEffect(pickUpSfx, this.getPos().x, this.getPos().y)
+				..destr()
+				giveGoldFancy(picker.getOwner(), gold, picker.getPos())
+				safeDestroy()
+		
+	static function forEach(CoinCallback doWhat)
+		for Coin coin in instances
+			doWhat.call(coin)
+	
+	private static function timerCallback()
+		let self = GetExpiredTimer().getData() castTo thistype
+		AddSpecialEffect(selfDeathSfx, self.getPos().x, self.getPos().y)
+		..destr()
+		destroy self

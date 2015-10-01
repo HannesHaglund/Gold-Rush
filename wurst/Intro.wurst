@@ -1,0 +1,28 @@
+package Intro
+
+import Game
+import IntroCinematic
+import ClosureTimers
+import CameraSettings
+import BomberFactory
+
+function intro()
+	disableCameraEffects()
+	Cinematic cin
+	cin = getIntro((real dur) -> begin
+		enableCameraEffects()
+		new Game()
+	end)
+	cin.start()
+init
+	doAfter(0.05, () -> intro())
+	setWinCallback((player winner) -> begin
+		if winner != null
+			printTimed(winner.getNameColored() + " has won the game!", 5.0)
+		else
+			printTimed("Nobody won the game. Weird.", 5.0)
+		printTimed("We will restart momentarily...", 12.0)
+		doAfter(5.0, () -> begin
+			new Game()
+		end)
+	end)

@@ -1,0 +1,16 @@
+package ChaserAttackFix
+
+import Utilities
+
+constant neutralHostile = players[12]
+constant chaserId = 'H000'
+
+init
+	CreateTrigger()
+	..registerAnyUnitEvent(EVENT_PLAYER_UNIT_ATTACKED)
+	..addAction(() -> begin
+		let attacker = GetAttacker()
+		let attacked = GetTriggerUnit()
+		if attacker.getTypeId() == chaserId and attacked.getOwner() == neutralHostile and attacked.isStructure()
+			attacker.stop()
+	end)

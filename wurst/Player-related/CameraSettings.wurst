@@ -1,0 +1,35 @@
+package CameraSettings
+
+import ClosureTimers
+
+constant howOften = 4.0
+constant distance = 1300.0
+constant changeTime = 0.0000001
+constant smooth = 6.0
+constant standardSmooth = 1.0
+constant startsEnabled = true
+
+boolean enabled
+
+public function disableCameraEffects()
+	enabled = false
+	CameraSetSmoothingFactor(standardSmooth)
+	
+public function enableCameraEffects()
+	enabled = true
+	CameraSetSmoothingFactor(smooth)
+	SetCameraBounds(-5500, -5500, -5500, 5500, 5500, 5500, 5500, -5500)
+	setNow()
+
+public function isCameraEffectsEnabled() returns boolean
+	return enabled
+
+function setNow()
+	if enabled
+		SetCameraField(CAMERA_FIELD_ZOFFSET, distance, changeTime)
+init
+	if startsEnabled
+		enableCameraEffects()
+	else
+		disableCameraEffects()
+	doPeriodically(howOften, (CallbackPeriodic cb) -> setNow())

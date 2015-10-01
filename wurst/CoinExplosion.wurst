@@ -1,0 +1,69 @@
+package CoinExplosion
+
+import Coin
+
+constant startScale = 0.80
+
+public function coinExplosion(int totalGold, vec3 spawn, int minGoldPerCoin, int maxGoldPerCoin, real maxVelocity, real minZVelocity, real maxZVelocity, real invulFor)
+	//Setting coins and making sure is even
+	var goldLeft = totalGold
+	
+	while goldLeft > 0
+		var coinValue = minGoldPerCoin
+		if goldLeft > maxGoldPerCoin
+			coinValue = GetRandomInt(minGoldPerCoin, maxGoldPerCoin)
+		else if goldLeft < minGoldPerCoin
+			return
+			
+		let angle = GetRandomReal(0, 2*PI).asAngleRadians()
+		let velo = GetRandomReal(0, maxVelocity)
+		let zVelo = GetRandomReal(minZVelocity, maxZVelocity)
+		new Coin(spawn, coinValue, angle, velo, zVelo)
+		..disableSensorFor(invulFor)
+		..scale(startScale * SquareRoot(coinValue.toReal()))
+		
+		goldLeft -= coinValue
+
+/* DECAPETATED VERSION:
+public function coinExplosion(int totalGold, vec3 spawn, real maxVelocity, real maxZVelocity, int minCoins, int maxCoins, real invulFor, real maxGoldDifPercent)
+	
+	//Setting coins and making sure is even
+	var coinsLeft = GetRandomInt(minCoins, maxCoins)
+	if coinsLeft % 2 != 0
+		if coinsLeft == maxCoins
+			coinsLeft--
+		else
+			coinsLeft++
+	
+	//Some info about gold spending
+	let avarageCoinGold = totalGold / coinsLeft
+	let goldPerRound = (avarageCoinGold * 2).round()
+	var goldRemaining = totalGold
+	
+	while coinsLeft > 0 //Might as well (probably) be while true, but is failsafe
+		if goldRemaining < goldPerRound //If we can't afford double coin
+			//Do one last coin. Ideally we never land here
+			new Coin(spawn, goldRemaining, GetRandomReal(0, 2*PI).asAngleRadians(), GetRandomReal(0, maxVelocity), GetRandomReal(0, maxZVelocity))
+			return
+		else
+			//Regular coins: 2x, and they each complement the size of the other
+			let goldDifPercent = GetRandomReal(0, maxGoldDifPercent)
+			let goldDif = avarageCoinGold * goldDifPercent
+			
+			let angleA = GetRandomReal(0, 2*PI).asAngleRadians()
+			let angleB = GetRandomReal(0, 2*PI).asAngleRadians()
+			let veloA = GetRandomReal(0, maxVelocity)
+			let veloB = GetRandomReal(0, maxVelocity)
+			let zVeloA = GetRandomReal(0, maxZVelocity)
+			let zVeloB = GetRandomReal(0, maxZVelocity)
+			
+			let a = new Coin(spawn, (avarageCoinGold - goldDif).round(), angleA, veloA, zVeloA)
+			let b = new Coin(spawn, (avarageCoinGold + goldDif).round(), angleB, veloB, zVeloB)
+			
+			a.scale(1 - goldDifPercent)
+			b.scale(1 + goldDifPercent)
+			a.disableSensorFor(invulFor)
+			b.disableSensorFor(invulFor)
+			
+			coinsLeft -= 2
+			goldRemaining -= goldPerRound*/

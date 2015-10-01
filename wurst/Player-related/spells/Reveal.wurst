@@ -1,0 +1,37 @@
+package Reveal
+
+import PlayerAvatar
+import ClosureTimers
+
+constant abilId = 'A008'
+constant area = 1400.0
+constant duration = 5.0
+
+constant pingR = 150
+constant pingG = 150
+constant pingB = 150
+constant pingDur = duration
+constant pingExtras = false
+
+constant playersMax = 12
+
+init
+	CreateTrigger()
+	..registerAnyUnitEvent(EVENT_PLAYER_UNIT_SPELL_EFFECT)
+	..addAction(() -> begin
+		if GetSpellAbilityId() == abilId
+			let tu = GetTriggerUnit()
+			for i = 0 to playersMax - 1
+				if PlayerAvatar.instanceOfExists(players[i])
+					let targetAvatar = PlayerAvatar.instanceOf(players[i])
+					let target = targetAvatar.getHero()
+					if targetAvatar.isChaser()
+						let fmod = CreateFogModifierRadius(tu.getOwner(), FOG_OF_WAR_VISIBLE, target.getX(), target.getY(), area, false, false)
+						FogModifierStart(fmod)
+						doAfter(duration, () -> begin
+							FogModifierStop(fmod)
+							DestroyFogModifier(fmod)
+						end)
+						if GetLocalPlayer() == tu.getOwner()
+							PingMinimapEx(target.getX(), target.getY(), pingDur, pingR, pingG, pingB, pingExtras)
+	end)

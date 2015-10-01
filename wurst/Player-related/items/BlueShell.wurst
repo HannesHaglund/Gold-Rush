@@ -1,0 +1,38 @@
+package BlueShell
+
+import ClosureTimers
+import PlayerAvatar
+import Utilities
+
+constant updateTime = 1.0
+constant aoe = 500.0
+constant playerCount = 12
+constant itemId = 'I004'
+
+function richestPlayerHero() returns unit
+	var richest = -1
+	var richestGold = 0
+	for pindex = 0 to playerCount - 1
+		if PlayerAvatar.instanceOfExists(players[pindex]) and players[pindex].getGold() > richestGold
+			richest = pindex
+			richestGold = players[pindex].getGold()
+	if richest < 0
+		return null
+	else
+		return PlayerAvatar.instanceOf(players[richest]).getHero()
+			
+
+init
+	doPeriodically(updateTime, (CallbackPeriodic cb) -> begin
+		for pindex = 0 to playerCount - 1
+			if PlayerAvatar.instanceOfExists(players[pindex])
+				let hero = PlayerAvatar.instanceOf(players[pindex]).getHero()
+				if hero.isAlive() and hero.hasItemOfType(itemId)
+					let richest = richestPlayerHero()
+					let fmod = CreateFogModifierRadius(players[pindex], FOG_OF_WAR_VISIBLE, richest.getPos().x, richest.getPos().y, aoe, false, false)
+					FogModifierStart(fmod)
+					doAfter(updateTime, () -> begin
+						FogModifierStop(fmod)
+						DestroyFogModifier(fmod)
+					end)
+	end)

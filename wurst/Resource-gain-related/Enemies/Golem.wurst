@@ -1,0 +1,6 @@
+package Golem
+
+import KnockbackAttack
+
+init
+	registerType('c000', 750.0, 1.5)

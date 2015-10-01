@@ -1,0 +1,68 @@
+package GoldMine
+
+import Treasure
+import ControlledAnimation
+
+//Ping and reveal
+constant goldRatio = 2.25
+constant pingR = 224
+constant pingG = 196
+constant pingB = 0
+constant pingDur = 20.0
+constant pingExtras = false
+constant revealAoe = 1000.0
+constant isInvul = true
+constant sSound = gg_snd_QuestNew
+
+//gm ids
+constant uid = 'gmin'
+
+//effects
+constant deathSfx = "war3mapImported\\NewGroundEX.mdl"
+
+//gm Summon time
+constant summonTimeDefault = 60.0
+constant summonTime = 15.0
+
+//Coins
+constant cValMin = 3
+constant cValMax = 5
+
+public class GoldMine extends Treasure
+	private boolean hasVisibility
+	private fogmodifier array[12] visibilityMod
+		
+	construct(vec2 where, angle facing, boolean ping, boolean makeVisible, boolean  playSound)
+		super(uid, where, facing, goldRatio, cValMin, cValMax)
+		
+		SetUnitInvulnerable(getDummy(), true)
+		new ControlledAnimation(getDummy(), "birth", summonTimeDefault, summonTime, (ControlledAnimation a) -> begin
+			SetUnitInvulnerable(getDummy(), false)
+		end)
+		..lockHealthWhileAnimating(getDummy().getMaxHP())
+		
+		turnOffDeathAnimation() //We play a SFX on death instead
+		
+		if ping
+			//Excuse the JASS :(
+			PingMinimapEx(where.x, where.y, pingDur, pingR, pingG, pingB, pingExtras)
+			
+		hasVisibility = makeVisible
+		if makeVisible
+			for i = 0 to 11
+				//Oh god I'm so sorry ;_;
+				let fmod = CreateFogModifierRadius(players[i], FOG_OF_WAR_VISIBLE, where.x, where.y, revealAoe, false, false)
+				FogModifierStart(fmod)
+				visibilityMod[i] = fmod
+		
+		if playSound
+			StartSound(sSound)
+				
+	ondestroy
+		AddSpecialEffect(deathSfx, getPos().x, getPos().y)
+		..destr()
+		if hasVisibility
+			for i = 0 to 11
+				FogModifierStop(visibilityMod[i])
+				DestroyFogModifier(visibilityMod[i])
+		

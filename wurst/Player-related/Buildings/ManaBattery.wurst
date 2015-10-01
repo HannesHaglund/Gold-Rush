@@ -1,0 +1,50 @@
+package ManaBattery
+
+import PlayerBuilding
+import TempGroups
+import ClosureTimers
+import Utilities
+import WorldClock
+
+constant sourceSfx = "Abilities\\Spells\\Undead\\ReplenishMana\\ReplenishManaCasterOverhead.mdl"
+constant targetSfx = "Abilities\\Spells\\Items\\AIma\\AImaTarget.mdl"
+constant lightName = "DRAM"
+
+constant uid = 'h004'
+constant uPeriod = 2
+constant manaPerSecond = 10.0
+constant manaPerUpdate = manaPerSecond * ANIMATION_PERIOD
+constant manaPerPeriod = manaPerUpdate * uPeriod
+constant periodTime = uPeriod * ANIMATION_PERIOD
+constant sfxHowOften = 16
+
+constant targetManaMinPercent = 0.999
+constant casterMaxManaInstantSfx = manaPerPeriod * 2
+
+constant aoe = 400.0
+
+class ManaBattery extends PlayerBuilding
+	
+	construct()
+		super(uid)
+		this.addUpdate(uPeriod, (Updateable updateable) -> begin
+			for unit battery in getUnits()
+				var hasAddedSelfSfx = false
+				ENUM_GROUP.enumUnitsInRange(battery.getPos(), aoe)
+				for unit target in ENUM_GROUP
+					if target.isAlive() and target.isHero() and battery.getOwner().isAllyOf(target.getOwner()) and target.getMana() < target.getMaxMana() * targetManaMinPercent and battery.getMana() > manaPerPeriod
+						let light = AddLightning(lightName, true, target.getX(), target.getY(), battery.getX(), battery.getY())
+						doAfter(periodTime, () -> 	DestroyLightning(light))
+						battery.setMana(battery.getMana() - manaPerPeriod)
+						target.setMana(target.getMana() + manaPerPeriod)
+						let mdsfx = currentWorldTick() % sfxHowOften
+						if mdsfx == 0 or mdsfx == 1 or battery.getMana() < casterMaxManaInstantSfx
+							if not hasAddedSelfSfx
+								AddSpecialEffect(sourceSfx, battery.getX(), battery.getY())
+								..destr()
+								hasAddedSelfSfx = true
+							AddSpecialEffect(targetSfx, target.getX(), target.getY())
+							..destr()
+		end)
+init
+	new ManaBattery()			

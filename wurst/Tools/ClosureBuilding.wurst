@@ -1,0 +1,24 @@
+package ClosureBuilding
+
+import LinkedList
+
+public abstract class SpawnCallback
+	abstract function call(unit builder, unit building)
+	
+LinkedList<SpawnCallback> registeredCallbacks = new LinkedList<SpawnCallback>
+trigger trig = CreateTrigger()
+
+function fire(unit builder, unit building)
+	for SpawnCallback e in registeredCallbacks
+		e.call(builder, building)
+		
+function fireTrig()
+	fire(GetTriggerUnit(), GetConstructingStructure())
+
+function registerBuildingCallback(SpawnCallback callback)
+	registeredCallbacks.add(callback)
+	
+init
+	for i = 0 to 13
+		trig.registerPlayerUnitEvent(players[i], EVENT_PLAYER_UNIT_CONSTRUCT_START, null)
+	trig.addAction(function fireTrig)

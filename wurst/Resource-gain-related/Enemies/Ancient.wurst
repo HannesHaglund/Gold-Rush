@@ -1,0 +1,100 @@
+package Ancient
+
+import Spot
+import Creep
+import Utilities
+import AncientMissile
+import ControlledAnimation
+import ClosureTimers
+import TempGroups
+
+constant uid = 'can2'
+constant owner = players[12]
+constant facing = angle(0)
+constant lootMoney = 10
+
+constant stdAnimTime = 1.0
+constant stdFrontswing = 0.8
+constant animTime = 0.6
+
+constant attackSpeed = 2.0
+constant range = 1100.0
+
+constant angdif = (PI / 6).asAngleRadians()
+
+constant kbDist = 800.0
+constant kbTime = 2.0
+
+constant aName = "birth"
+constant aTime = 60.0
+constant aTimeWanted = 10.0
+
+public class Ancient extends Creep
+	private Spot spot
+	private boolean hasSpot
+	private CallbackPeriodic t
+	private boolean spawning
+	private ControlledAnimation birthAnim
+	private boolean attacking
+	private ControlledAnimation atkAnim
+	
+	construct(Spot spot)
+		super(uid, spot.getPos(), facing, lootMoney)
+		
+		t = (CallbackPeriodic cp) -> begin
+			let targ = findTarget()
+			if targ != null
+				fire(targ)
+		end
+		
+		doPeriodically(attackSpeed, t)
+	
+		if spot.take()
+			hasSpot = true
+			this.spot = spot
+			
+			SetUnitInvulnerable(getDummy(), true)
+			spawning = true
+			birthAnim = new ControlledAnimation(getDummy(), aName, aTime, aTimeWanted, (ControlledAnimation a) -> begin
+				SetUnitInvulnerable(getDummy(), false)
+				spawning = false
+			end)
+			birthAnim.lockHealthWhileAnimating(getDummy().getMaxHP())
+			
+			attacking = false
+		else
+			hasSpot = false
+			destroy this
+			
+	ondestroy
+		if hasSpot
+			if spawning
+				destroy birthAnim
+			if attacking
+				destroy atkAnim
+			destroy t
+			spot.release()
+			dummy.kill()
+		else
+			dummy.remove()
+	
+	protected function fire(unit target)
+		if spawning
+			return
+		let ang = getDummy().getPos().angleTo(target.getPos())
+		getDummy().stop()
+		getDummy().setFacing(ang)
+		attacking = true
+		atkAnim = new ControlledAnimation(getDummy(), "attack", stdAnimTime, stdFrontswing, animTime, (ControlledAnimation a) -> begin
+			new AncientMissile(getDummy(), ang, kbDist, kbTime)
+			new AncientMissile(getDummy(), ang + angdif, kbDist, kbTime)
+			new AncientMissile(getDummy(), ang - angdif, kbDist, kbTime)
+			attacking = false
+		end)
+		
+	protected function findTarget() returns unit
+		ENUM_GROUP.enumUnitsInRange(getDummy().getPos(), range)
+		for unit u in ENUM_GROUP
+			if u.isAlive() and u.getOwner() != dummy.getOwner() and not u.isInvulnerable()
+				return u
+		return null

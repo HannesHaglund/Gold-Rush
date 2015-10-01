@@ -1,0 +1,109 @@
+package ControlledAnimation
+
+import Updateable
+
+/*========================================
+Constants, do not change these
+========================================*/
+constant idleAnimation = "stand"
+constant idleTimeScale = 1.0
+constant swingSkip = ANIMATION_PERIOD * 1
+constant hpCheckHowOften = 4
+
+/*================================================================================
+
+The class allows for better control of scripted animations.
+At creation, it will start playing the animation at the desired speed.
+Once backswingtime is reached (if it exists) the unit is unpaused and a custom callback is called
+After the entire animation is over, the class is destroyed.
+Upon destruction, animations and animation speed is reset, and the unit is unpaused.
+
+If you wish to chain animations, please destroy the last instance in the callback before
+applying a new animation - otherwise, the unit will have its animation reset improperly.
+
+Please do not remove a unit from the game if it is controlled by ControlledAnimation,
+destroy the instance first or kill it.
+
+Performing a delayed destroy should not be necessary.
+
+================================================================================*/
+
+public abstract class AnimationEndCallback
+	abstract function call(ControlledAnimation a)
+
+public class ControlledAnimation extends Updateable
+	private unit target
+	private timer destroyTimer
+	private timer frontSwingTimer
+	private AnimationEndCallback callback
+	
+	private real lockHpTo
+	private boolean canLockHp
+	private boolean hpIsLocked
+	
+	construct(unit target, string animationName, real originalAnimationTime, real originalFrontSwingTime, real desiredAnimationTime, AnimationEndCallback callback)
+		super()
+		setup(target, originalAnimationTime, originalFrontSwingTime, desiredAnimationTime, callback)
+		this.target.setAnimation(animationName)
+		
+	construct(unit target, int animationId, real originalAnimationTime, real originalFrontSwingTime, real desiredAnimationTime, AnimationEndCallback callback)
+		super()
+		setup(target, originalAnimationTime, originalFrontSwingTime, desiredAnimationTime, callback)
+		SetUnitAnimationByIndex(target, animationId)
+		
+	construct(unit target, string animationName, real originalAnimationTime, real desiredAnimationTime, AnimationEndCallback callback)
+		super()
+		setup(target, originalAnimationTime, originalAnimationTime - swingSkip, desiredAnimationTime, callback)
+		this.target.setAnimation(animationName)
+		
+	construct(unit target, int animationId, real originalAnimationTime, real desiredAnimationTime, AnimationEndCallback callback)
+		super()
+		setup(target, originalAnimationTime, originalAnimationTime - swingSkip, desiredAnimationTime, callback)
+		SetUnitAnimationByIndex(target, animationId)
+		
+	//Sets up common constructor data
+	private function setup(unit target, real originalAnimationTime, real originalFrontSwingTime, real desiredAnimationTime, AnimationEndCallback callback)
+		this.callback = callback
+		this.target = target
+		this.target.pause()
+		let rate = originalAnimationTime / desiredAnimationTime
+		this.target.setTimeScale(rate)
+		IssueImmediateOrder(this.target, "stop")
+		this.destroyTimer = getTimer()
+		..setData(this castTo int)
+		..start(desiredAnimationTime, () -> begin
+			let self = GetExpiredTimer().getData() castTo thistype
+			destroy self
+		end)
+		this.frontSwingTimer = getTimer()
+		..setData(this castTo int)
+		..start(desiredAnimationTime * originalFrontSwingTime / originalAnimationTime, () -> begin
+			let self = GetExpiredTimer().getData() castTo thistype
+			self.canLockHp = false
+			self.hpIsLocked = false
+			self.target.unpause()
+			self.callback.call(self)
+		end)
+		
+		lockHpTo = -1
+		canLockHp = true
+		hpIsLocked = false
+		
+		addUpdate(hpCheckHowOften, (Updateable source) -> begin
+			if hpIsLocked
+				target.setHP(lockHpTo)
+		end)
+		
+	function lockHealthWhileAnimating(real toWhat)
+		if canLockHp
+			hpIsLocked = true
+			lockHpTo = toWhat
+		
+	ondestroy
+		if target.isAlive()
+			target.setAnimation(idleAnimation)
+		target.setTimeScale(idleTimeScale)
+		target.unpause()
+		destroyTimer.release()		
+		frontSwingTimer.release()
+		destroy callback

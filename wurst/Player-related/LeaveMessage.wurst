@@ -1,0 +1,17 @@
+package LeaveMessage
+
+constant maxPlayers = 12
+constant msgLeaveTime = 4.0
+constant msgLeave = " has left the game!"
+constant leaveSound = gg_snd_CreepAggro
+
+init
+	for i = 0 to maxPlayers - 1
+		CreateTrigger()
+		..registerPlayerEvent(players[i], EVENT_PLAYER_LEAVE)
+		..addAction(() -> begin
+			let tp = GetTriggerPlayer()
+			printTimed(tp.getNameColored() + msgLeave, msgLeaveTime)
+			StartSound(leaveSound)
+			tp.subGold(tp.getGold())
+		end)

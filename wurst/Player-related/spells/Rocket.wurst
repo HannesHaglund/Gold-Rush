@@ -1,0 +1,62 @@
+package Rocket
+
+import MissileAccel
+import Sensor
+import Utilities
+import PlayerAvatar
+import KnockbackFork
+
+constant missileArt = "war3mapImported\\Rocket.mdx"
+constant buildingDamage = 30.0
+constant senseAoe = 80.0
+constant missileHeight = 45.0
+constant distanceMax = 1000.0
+constant accel = 30 * ANIMATION_PERIOD
+constant velocity = 5 * ANIMATION_PERIOD
+constant abilId = 'A00C'
+
+constant goldLostCoinValue = 1
+constant goldLost = 5
+constant goldDistanceFactor = 0.20
+
+constant kbDistance = 500.0
+constant kbTime = 1.5
+
+constant neutralHostile = players[12]
+constant neutralPassive = Player(15)
+
+constant ancientId = 'can2'
+
+class Rocket extends MissileAccel
+	private unit caster
+	
+	construct(unit caster, angle ang)
+		super(missileArt, senseAoe, vec3(caster.getX(), caster.getY(), missileHeight), vec2(velocity*ang.cos(), velocity*ang.sin()), vec2(accel*ang.cos(), accel*ang.sin()), distanceMax, ang)
+		this.caster = caster
+		this.setCallback((Sensor source, unit target) -> begin
+			if target != caster
+				if not target.isInvulnerable()
+					if target.isStructure()
+						if target.getTypeId() == ancientId or (target.getOwner() != neutralHostile and target.getOwner() != neutralPassive)
+							caster.damageTarget(target, buildingDamage)
+					else
+						new Knockback(target, kbDistance, kbTime, ang)
+						if PlayerAvatar.instanceOfExists(target)
+							let avatar = PlayerAvatar.instanceOf(target)
+							if avatar.isRunner()
+								PlayerAvatar.instanceOf(target).loot(goldLost, 0, goldDistanceFactor, goldLostCoinValue, goldLostCoinValue)
+							
+				safeDestroy()
+		end)
+		
+init
+	CreateTrigger()
+	..registerAnyUnitEvent(EVENT_PLAYER_UNIT_SPELL_EFFECT)
+	..addAction(() -> begin
+		if GetSpellAbilityId() == abilId
+			let caster = GetTriggerUnit()
+			let spellLoc = GetSpellTargetLoc()
+			let pos = vec2(GetLocationX(spellLoc), GetLocationY(spellLoc))
+			RemoveLocation(spellLoc)
+			new Rocket(caster, caster.getPos().angleTo(pos))
+	end)

@@ -1,0 +1,420 @@
+package PlayerAvatar
+
+import LinkedList
+import ClosureTimers
+import Utilities
+import ClosureForGroups
+import ClosureEvents
+import Spots
+import TempGroups
+import initlater CoinExplosion
+
+constant chaserId = 'H000'
+constant runnerId = 'N000'
+constant chaserSpawn = vec2(0, -370)
+constant chaserFace = angle(0)
+constant heroPanTime = 0.5
+constant heroPanDelay = 1.5
+
+constant initialSpawnPanTime = 0.10
+
+constant damageTriggingMin = 0.9
+
+constant chaserDeathSfx = "Abilities\\Spells\\NightElf\\Blink\\BlinkCaster.mdl"
+constant chaserSpawnInitialSfx = "Abilities\\Spells\\Human\\ReviveHuman\\ReviveHuman.mdl"
+constant chaserSpawnDelayedSfx = "Abilities\\Spells\\Orc\\Reincarnation\\ReincarnationTarget.mdl"
+constant runnerSpawnInitialSfx = "Abilities\\Spells\\Human\\ReviveHuman\\ReviveHuman.mdl"
+constant runnerSpawnDelayedSfx = "Abilities\\Spells\\Human\\MassTeleport\\MassTeleportCaster.mdl"
+
+constant runnerDeathTime = 3.0
+
+constant untargetablePlayer = players[12] //Neutral hostile
+
+constant msgChangeTime = 9.0
+constant msgChangeRunner = " is now a goblin!"
+constant msgChangeChaser = " is now a human!"
+constant msgTipDelayRunner = 0.0001
+constant msgTipDelayChaser = heroPanDelay + heroPanTime * 0.8
+constant msgTipTime = 9.0
+constant msgTipRunner = "|cffaaaaaaYou are now a goblin! Survive, and gain gold to build the superweapon to win the game.\nGold is gained passively, from gold veins, from gold mines, and from assisting humans in killing other runners.|r"
+constant msgTipChaser = "|cffaaaaaaYou are now a human! Slay a goblin to switch roles with him, so that you can work towards the games win condition.|r"
+constant msgAutobalanceTime = 8.0
+constant msgAutobalance = "Roles are now being randomly changed. Please do not be alarmed!"
+
+constant goldColor = "|cffffff"
+constant goldTagSize = 36.0
+constant goldTagLife = 1.0
+constant goldTagFade = 0.75
+constant goldTagSpeed = 15.0
+
+constant minimumGoldDroppedOnDeath = 75
+
+constant goldPercentLostOnDeath = 0.75
+
+constant cexplMaxVelo = 230 * ANIMATION_PERIOD
+constant cexplMaxVeloZ = 1100 * ANIMATION_PERIOD
+constant cexplMinVeloZ = 700 * ANIMATION_PERIOD
+constant cexplInvulFor = 0.5
+constant cexplMaxCoinValue = 3
+constant cexplMinCoinValue = 1
+
+constant deathDistFact = 1.0
+constant deathCoinValueMin = 3
+constant deathCoinValueMax = 10
+
+constant enemyForcingDrop = players[12]
+
+constant passiveGoldHowOften = 5.0
+constant passiveGoldHowMuch = 1
+
+constant roleUpdateSound = gg_snd_Hint
+constant roleDiedSound = gg_snd_QuestFailed
+constant roleKilledSound = gg_snd_GoodJob
+constant roleAutoSound = gg_snd_TeamInv
+
+public function desiredNumberOfChasers(integer numberOfPlayers) returns integer
+	if numberOfPlayers == 1
+		return 0
+	else if numberOfPlayers <= 4
+		return 1
+	else if numberOfPlayers <= 7
+		return 2
+	else if numberOfPlayers <= 10
+		return 3
+	else
+		return 4
+	
+public abstract class AvatarDamageCallback
+	abstract function call(PlayerAvatar source, unit target, unit attacker)
+
+public class PlayerAvatar
+	//==================================================
+	//Static instance storage
+	//==================================================
+	private static LinkedList<PlayerAvatar> instances = new LinkedList<PlayerAvatar>()
+	private static boolean autoBalanceOnLeaveEnabled = true
+	private static LinkedList<AvatarDamageCallback> damageCallbacks = new LinkedList<AvatarDamageCallback>()
+	private static Spots spawnSpots
+	private static boolean hasSpawns = false
+	
+	static function countRemaining() returns integer
+		return instances.getSize()
+		
+	static function loneRemainingPlayer() returns player
+		if instances.getSize() != 1
+			return null
+		else
+			return instances.get(0).hero.getOwner()
+	
+	static function setSpawnPoints(Spots spots)
+		spawnSpots = spots
+		hasSpawns = true
+		
+	static function eraseSpots()
+		hasSpawns = false
+	
+	static function instanceOf(player who) returns PlayerAvatar
+		for PlayerAvatar e in instances
+			if e.hero.getOwner() == who
+				return e
+		printError("Tried to find the PlayerAvatar instance of " + who.getNameColored() + ". It does not exist.")
+		return instances.get(0)
+		
+	static function instanceOf(unit hero) returns PlayerAvatar
+		for PlayerAvatar e in instances
+			if e.hero == hero
+				return e
+		printError("Tried to find the PlayerAvatar instance of some unit. It does not exist.")
+		return instances.get(0)
+		
+	static function instanceOfExists(player who) returns boolean
+		for PlayerAvatar e in instances
+			if e.hero.getOwner() == who
+				return true
+		return false
+		
+	static function instanceOfExists(unit hero) returns boolean
+		for PlayerAvatar e in instances
+			if e.hero == hero
+				return true
+		return false
+		
+	static function heroes() returns group
+		ENUM_GROUP.clear()
+		for PlayerAvatar pa in instances
+			ENUM_GROUP.addUnit(pa.hero)
+		return ENUM_GROUP
+		
+	static function destroyInstances()
+		disableAutoBalance()
+		for PlayerAvatar pa in instances
+			destroy pa
+		enableAutoBalance()
+		
+	static function hideAll()
+		for PlayerAvatar e in instances
+			e.hide()
+			
+	static function showRunners()
+		for PlayerAvatar e in instances
+			if e.isRunner()
+				e.unHide()
+	
+	static function showAll()
+		for PlayerAvatar e in instances
+			e.unHide()
+			
+	static function enableAutoBalance()
+		autoBalanceOnLeaveEnabled = true
+	
+	static function disableAutoBalance()
+		autoBalanceOnLeaveEnabled = false
+		
+	static function registerDamageCallback(AvatarDamageCallback cb)
+		damageCallbacks.add(cb)
+		
+	private static function updateAlliances()
+		for thistype pa1 in instances
+			if pa1.isChaser
+				for thistype pa2 in instances
+					if pa2 != pa1
+						if pa2.isChaser
+							SetPlayerAllianceStateBJ(pa1.hero.getOwner(), pa2.hero.getOwner(), bj_ALLIANCE_ALLIED)
+						else
+							SetPlayerAllianceStateBJ(pa1.hero.getOwner(), pa2.hero.getOwner(), bj_ALLIANCE_UNALLIED)
+			else
+				for thistype pa2 in instances
+					if pa2 != pa1
+						if pa2.isChaser
+							SetPlayerAllianceStateBJ(pa1.hero.getOwner(), pa2.hero.getOwner(), bj_ALLIANCE_UNALLIED)
+						else
+							SetPlayerAllianceStateBJ(pa1.hero.getOwner(), pa2.hero.getOwner(), bj_ALLIANCE_UNALLIED_VISION)
+	//==================================================
+	//The class itself
+	//==================================================
+	
+	private boolean isChaser
+	private unit hero
+	private trigger deathTrigger
+	private trigger leaveTrigger
+	private OnDamage onDmg
+	private timer incomeTimer
+
+	construct(player owner, boolean isChaser, vec2 where, angle facing)
+	
+		this.isChaser = isChaser
+		if isChaser
+			hero = createUnit(owner, chaserId, where, facing)
+		else
+			hero = createUnit(owner, runnerId, where, facing)
+		SuspendHeroXP(hero, true)
+		SetPlayerHandicapXP(owner, 0.0)
+		hero.getOwner().select(hero)
+		hero.getOwner().subGold(hero.getOwner().getGold())
+		hero.getOwner().panCamToTimed(hero, initialSpawnPanTime)
+		
+		leaveTrigger = CreateTrigger()
+		..registerPlayerEvent(owner, EVENT_PLAYER_LEAVE)
+		..addAction(function staticLeaveCallback)
+		
+		resetUnitTriggers(false)
+		
+		incomeTimer = getTimer()
+		..setData(this castTo int)
+		..startPeriodic(passiveGoldHowOften, () -> begin
+			let self = GetExpiredTimer().getData() castTo thistype
+			self.giveGold(passiveGoldHowMuch)
+		end)
+		
+		instances.add(this)
+		updateAlliances()
+		
+	ondestroy
+		SetPlayerHandicapXP(hero.getOwner(), 1.0)
+		hero.getOwner().subGold(hero.getOwner().getGold())
+		destroy onDmg
+		instances.remove(this)
+		hero.remove()
+		removeUnits()
+		deathTrigger.destr()
+		leaveTrigger.destr()
+		if autoBalanceOnLeaveEnabled
+			autoAdjustChasers(false)
+		incomeTimer.release()
+	
+	function getHero() returns unit
+		return hero
+	
+	function hide()
+		hero.hide()
+		hero.pause()
+	
+	function unHide()
+		hero.show()
+		hero.unpause()
+		hero.getOwner().select(hero)
+		
+	function isChaser() returns boolean
+		return isChaser
+		
+	function isRunner() returns boolean
+		return not isChaser
+	
+	function giveGold(integer amount)
+		giveGoldFancy(hero.getOwner(), amount, hero.getPos())
+		
+	function loot(int howMuch)
+		loot(howMuch, 0, 1.0, cexplMinCoinValue, cexplMaxCoinValue)
+	
+	function loot(int howMuch, int extraDropped, real distanceFactor, int goldValueMin, int goldValueMax)
+		let actualAmount = min(howMuch, hero.getOwner().getGold())
+		goldLostMessage(actualAmount, hero.getPos())
+		coinExplosion(actualAmount + extraDropped, vec3(hero.getPos().x, hero.getPos().y, 0), goldValueMin, goldValueMax, cexplMaxVelo * distanceFactor, cexplMinVeloZ, cexplMaxVeloZ, cexplInvulFor)
+		hero.getOwner().subGold(actualAmount)
+		
+	protected function changeClass(boolean doSounds)
+		//Some variables
+		let oldHero = hero
+		let oldHeroOwner = oldHero.getOwner()
+		oldHero.setPathing(false)
+		
+		//Actually changing heroes and applying sfx's
+		if isChaser
+			printTimed(oldHero.getOwner().getNameColored() + msgChangeRunner, msgChangeTime)
+			doAfter(msgTipDelayRunner, () -> printTimedToPlayer(msgTipRunner, msgTipTime, oldHeroOwner))
+			if not hasSpawns or not spawnSpots.anyIsFree()
+				hero = createUnit(oldHero.getOwner(), runnerId, oldHero.getPos(), oldHero.getFacingAngle())
+			else
+				hero = createUnit(oldHero.getOwner(), runnerId, spawnSpots.getRandomAsVec(), oldHero.getFacingAngle())
+			AddSpecialEffect(chaserDeathSfx, oldHero.getPos().x, oldHero.getPos().y)
+			..destr()
+			AddSpecialEffect(runnerSpawnInitialSfx, hero.getPos().x, hero.getPos().y)
+			..destr()
+		else
+			printTimed(oldHero.getOwner().getNameColored() + msgChangeChaser, msgChangeTime)
+			doAfter(msgTipDelayChaser, () -> printTimedToPlayer(msgTipChaser, msgTipTime, oldHeroOwner))
+			
+			hero = createUnit(oldHero.getOwner(), chaserId, chaserSpawn, oldHero.getFacingAngle())
+			AddSpecialEffect(chaserSpawnInitialSfx, hero.getPos().x, hero.getPos().y)
+			..destr()
+		
+		//Deleting buildings and whatnot
+		removeUnits()
+		
+		//Setting up camera pans
+		doAfter(heroPanDelay, () -> begin
+			hero.getOwner().panCamToTimed(hero, heroPanTime)
+			if isChaser
+				AddSpecialEffect(runnerSpawnDelayedSfx, hero.getPos().x, hero.getPos().y)
+				..destr()
+			else
+				AddSpecialEffect(chaserSpawnDelayedSfx, hero.getPos().x, hero.getPos().y)
+				..destr()
+		end)
+		
+		//Playing sounds
+		if doSounds
+			StartSound(roleUpdateSound)
+			if GetLocalPlayer() == hero.getOwner()
+				StopSound(roleUpdateSound, false, false)
+				if isChaser
+					StartSound(roleKilledSound)
+				else
+					StartSound(roleDiedSound)
+		
+		//Minor fixes, removing old hero
+		hero.getOwner().select(hero)
+		SuspendHeroXP(hero, true)
+		resetUnitTriggers(true)
+		if isChaser
+			oldHero.remove()
+		else
+			oldHero.kill()
+			doAfter(runnerDeathTime, () -> oldHero.remove())
+		
+		//Setting up variables and states
+		isChaser = not isChaser
+		updateAlliances()
+		
+		
+	protected function resetUnitTriggers(boolean destroyOld)
+		if destroyOld
+			deathTrigger.destr()
+			destroy onDmg
+		deathTrigger = CreateTrigger()
+		..registerUnitEvent(hero, EVENT_UNIT_DEATH)
+		..addAction(function staticDeathCallback)
+		onDmg = onDamage(hero, (unit damaged, unit source, real amount) -> begin
+			if amount > damageTriggingMin
+				onDamageTaken(source, amount)
+		end)
+		
+	private function onDamageTaken(unit source, real amount)
+		for AvatarDamageCallback cb in damageCallbacks
+			cb.call(this, hero, source)
+		if isRunner()
+			let runnerDmg = instanceOfExists(source.getOwner()) and instanceOf(source.getOwner()).isRunner()
+			if source.getOwner() == enemyForcingDrop
+			if runnerDmg or source.getOwner() == enemyForcingDrop
+				let goldLost = min(hero.getOwner().getGold(), amount.round())
+				if goldLost > 0
+					loot(goldLost)
+		if (not PlayerAvatar.instanceOfExists(source.getOwner())) or PlayerAvatar.instanceOf(source.getOwner()).isRunner()
+			doAfter(0.0, () -> hero.addHP(amount)) //Healing him back
+	
+	protected function removeUnits()
+		forUnitsOfPlayer(hero.getOwner(), (unit u) -> begin
+			if u.isAlive() and u.getTypeId() != 'xcas' and u != getHero()
+				u.kill()
+		end)
+		
+	private function runnerDeath()
+		let goldLost = (hero.getOwner().getGold() * goldPercentLostOnDeath).round()
+		var extra = minimumGoldDroppedOnDeath - goldLost
+		if extra < 0
+			extra = 0
+		loot(goldLost, extra, deathDistFact, deathCoinValueMin, deathCoinValueMax)
+		
+	static function autoAdjustChasers(boolean doSound)
+		if instances.getSize() == 0
+			return
+		var chaserCount = 0
+		for PlayerAvatar e in instances
+			if e.isChaser
+				chaserCount++
+		let desiredChasers = desiredNumberOfChasers(countRemaining())
+		if chaserCount != desiredChasers
+			printTimed(msgAutobalance, msgAutobalanceTime)
+			if doSound
+				StartSound(roleAutoSound)
+			while chaserCount > desiredChasers and chaserCount > 0
+				let inst = instances.get(GetRandomInt(0, instances.getSize() - 1))
+				if inst.isChaser
+					inst.changeClass(false)
+					chaserCount--
+			while chaserCount < desiredChasers and instances.getSize() - chaserCount > 0
+				let inst = instances.get(GetRandomInt(0, instances.getSize() - 1))
+				if inst.isRunner()
+					inst.changeClass(false)
+					chaserCount++
+	
+	private static function staticLeaveCallback()
+		let tp = GetTriggerPlayer()
+		if instanceOfExists(tp)
+			let self = instanceOf(tp)
+			destroy self
+	
+	private static function staticDeathCallback()
+		let tu = GetTriggerUnit()
+		let killer = GetKillingUnit()
+		if instanceOfExists(tu)
+			let self = instanceOf(tu)
+			if self.isRunner()
+				self.runnerDeath()
+			if killer != null and instanceOfExists(killer.getOwner())
+				let killerSelf = instanceOf(killer.getOwner())
+				self.changeClass(true)
+				killerSelf.changeClass(true)
+			else
+				printWarning("A player died from a non-chaser source.")
+				self.hero.revive(self.hero.getPos(), false)

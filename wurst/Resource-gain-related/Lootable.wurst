@@ -1,0 +1,65 @@
+package Lootable
+
+import ClosureEvents
+import ArrayList
+import Coin
+
+constant angleDifMax = (PI / 4) //Will be converted to rad
+constant velocity = 185 * ANIMATION_PERIOD
+constant minVeloZ = 900 * ANIMATION_PERIOD
+constant maxVeloZ = 1100 * ANIMATION_PERIOD
+constant invulTime = 0.4
+constant minScale = 0.8
+constant maxScale = 1.2
+
+public class Lootable
+	private static ArrayList<integer> whiteListIds = new ArrayList<integer>()
+
+	private unit target
+	private real damageToGoldRatio
+	private OnDamage trig
+	private int coinValueMin
+	private int coinValueMax
+	private real scalePerValue
+	
+	construct(unit target, real damageToGoldRatio, int coinValueMin, int coinValueMax)
+		this.target = target
+		this.damageToGoldRatio = damageToGoldRatio
+		this.coinValueMin = coinValueMin
+		this.coinValueMax = coinValueMax
+		let coinValueRange = coinValueMax - coinValueMin
+		this.scalePerValue = (maxScale - minScale) / coinValueRange
+		trig = onDamage(target, (unit target, unit source, real amount) -> this.onDamageCallback(target, source, amount))
+		
+	
+	ondestroy
+		destroy trig
+		
+	private function spawnCoin(unit target, unit source, int gold)
+		let tpos = target.getPos()
+		let angle = source.getFacingAngle() - angle(PI) + GetRandomReal(-angleDifMax, angleDifMax).asAngleRadians()
+		let veloZ = GetRandomReal(minVeloZ, maxVeloZ)
+		let coin = new Coin(vec3(tpos.x, tpos.y, source.getFlyHeight()), gold, angle, velocity, veloZ)
+		coin.scale(minScale + (coin.getValue() - coinValueMin)*scalePerValue)
+		coin.disableSensorFor(invulTime)
+	
+	private function onDamageCallback(unit target, unit source, real amount)
+		let dmgInt = (amount * damageToGoldRatio).round()
+		var goldLeft = min(target.getHP().toInt(), dmgInt)
+		if canLoot(source.getTypeId())
+			while goldLeft > 0
+				let gold = min(GetRandomInt(coinValueMin, coinValueMax), goldLeft)
+				spawnCoin(target, source, gold)
+				goldLeft -= gold
+			
+	private static function canLoot(integer utype) returns boolean
+		for integer id in whiteListIds
+			if id == utype
+				return true
+		return false
+		
+	static function whitelist(integer uid)
+		whiteListIds.add(uid)
+
+	
+	

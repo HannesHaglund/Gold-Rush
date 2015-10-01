@@ -1,0 +1,145 @@
+package Leaderboard
+
+import LinkedList
+import ClosureTimers
+import PlayerAvatar
+import Kicking
+
+constant title = "Leaderboard"
+constant goldIcon = "ReplaceableTextures\\CommandButtons\\BTNChestOfGold.blp"
+constant nameIconChaser = "ReplaceableTextures\\CommandButtons\\BTNGarithos.blp"
+constant nameIconRunner = "ReplaceableTextures\\CommandButtons\\BTNHeroTinker.blp"
+constant iconUnknown = "ReplaceableTextures\\CommandButtons\\BTNSelectHeroOn.blp"
+constant statusPlaying = "|cffb2b2b2Status: Playing|r"
+constant statusLeft = "|cffb2b2b2Status: Left|r"
+constant statusKicked = "|cffb2b2b2Status: Kicked|r"
+constant columnCount = 3
+constant columnNameWidth = 0.08
+constant columnGoldWidth = 0.05
+constant columnStatusWidth = 0.08
+constant updateHowOften = 2.0
+constant initAfter = 0.05
+
+class Entry
+	integer ownerId
+	
+	construct(int ownerId)
+		this.ownerId = ownerId
+	
+	function renderOn(multiboard mb, int whichRow)
+		mb.getItem(whichRow, 0)
+		..setValue(players[ownerId].getNameColored())
+		..setIcon(getTypeIcon())
+		..setStyle(true, true)
+		..setWidth(columnNameWidth)
+		..release()
+		mb.getItem(whichRow, 1)
+		..setValue("|cffffcc00" + getGoldValue().toString() + "|r")
+		..setIcon(goldIcon)
+		..setStyle(true, true)
+		..setWidth(columnGoldWidth)
+		..release()
+		mb.getItem(whichRow, 2)
+		..setValue(getStatus())
+		..setStyle(true, false)
+		..setWidth(columnStatusWidth)
+		..release()
+				
+	function getGoldValue() returns int
+		return players[ownerId].getGold()
+		
+	function getTypeIcon() returns string
+		if PlayerAvatar.instanceOfExists(players[ownerId])
+			let avatar = PlayerAvatar.instanceOf(players[ownerId])
+			if avatar.isChaser()
+				return nameIconChaser
+			else
+				return nameIconRunner
+		else
+			return iconUnknown
+	
+	function getStatus() returns string
+		if players[ownerId].wasKicked()
+			return statusKicked
+		else if players[ownerId].getSlotState() == PLAYER_SLOT_STATE_PLAYING
+			return statusPlaying
+		else
+			return statusLeft
+		
+public class LeaderBoard
+	static LeaderBoard instance
+	private static boolean isInited = false
+	
+	static function isInited() returns boolean
+		return isInited
+		
+	private multiboard mb
+	private LinkedList<Entry> entries
+	
+	
+	construct()
+		entries = new LinkedList<Entry>()
+		createBoard()
+		if isInited
+			destroy instance
+		isInited = true
+		instance = this
+		update()
+	
+	function update()
+		let lsorted = getEntriesSorted()
+		var i = 0
+		for Entry entry in lsorted
+			entry.renderOn(mb, i)
+			i++
+		destroy lsorted
+		if not mb.isMinimized() //Some visual glitches unless we do this
+			mb.minimalize(true)
+			mb.minimalize(false)
+		
+
+		
+	function registerPlayer(int id)
+		entries.add(new Entry(id))
+		mb.destr()
+		createBoard()
+		
+	private function createBoard()
+		mb = CreateMultiboard()
+		mb.display(true)
+		mb.setTitle(title)
+		mb.setRowCount(entries.getSize())
+		mb.setColumnCount(columnCount)
+		
+	private function copyList(LinkedList<Entry> src) returns LinkedList<Entry>
+		var result = new LinkedList<Entry>()
+		for Entry entry in src
+			result.add(entry)
+		return result
+		
+	private function getEntriesSorted() returns LinkedList<Entry>
+		var result = new LinkedList<Entry>()
+		var pullFrom = copyList(entries)
+		//Super-inefficent insertion sort... I'm lazy.
+		while pullFrom.getSize() > 0
+			var biggest = pullFrom.get(0)
+			for Entry entry in pullFrom
+				if entry.getGoldValue() > biggest.getGoldValue()
+					biggest = entry
+			result.add(biggest)
+			pullFrom.remove(biggest)
+		destroy pullFrom
+		return result
+		
+init
+	doAfter(initAfter, () -> begin
+		let lb = new LeaderBoard()
+		for i = 0 to 11
+			if players[i].getSlotState() == PLAYER_SLOT_STATE_PLAYING
+				lb.registerPlayer(i)
+		lb.update()
+	end)
+	doPeriodically(updateHowOften, (CallbackPeriodic cb) -> begin
+		if LeaderBoard.isInited()
+			LeaderBoard.instance.update()
+	end)

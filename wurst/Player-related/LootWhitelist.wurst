@@ -1,0 +1,8 @@
+package LootWhitelist
+
+import Lootable
+
+constant chaserId = 'N000'
+
+init
+	Lootable.whitelist(chaserId)

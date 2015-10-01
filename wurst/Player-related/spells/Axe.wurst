@@ -1,0 +1,56 @@
+package Axe
+
+import Missile
+import Sensor
+import Utilities
+import InstantDummyCaster
+
+constant missileArt = "Abilities\\Weapons\\RexxarMissile\\RexxarMissile.mdl"
+constant missileScale = 1.5
+constant targetSfx = "Abilities\\Spells\\Other\\Stampede\\StampedeMissileDeath.mdl"
+constant targetSfxBuilding = "war3mapImported\\Rocket.mdl"
+constant targetAttach = "chest"
+constant senseAoe = 80.0
+constant missileHeight = 40.0
+constant distanceMax = 1000.0
+constant time = 0.7
+constant velocity = (distanceMax/time) * ANIMATION_PERIOD
+constant abilId = 'A009'
+
+constant exceptionPlayer = players[12] //Neutral hostile
+
+constant damage = 25.0
+constant targSpell = 'A00A'
+
+class Axe extends Missile
+	private unit caster
+	
+	construct(unit caster, angle ang)
+		super(missileArt, senseAoe, vec3(caster.getX(), caster.getY(), missileHeight), vec2(velocity*ang.cos(), velocity*ang.sin()), distanceMax, ang)
+		this.caster = caster
+		this.setCallback((Sensor source, unit target) -> begin
+			if target != caster
+				if not target.isInvulnerable() and target.getOwner() != exceptionPlayer
+					caster.damageTarget(target, damage)
+					if target.isHero()
+						InstantDummyCaster.castTarget(caster.getOwner(), targSpell, 1, "slow", target)
+						target.addEffect(targetSfx, targetAttach)
+						..destr()
+					else
+						AddSpecialEffect(targetSfxBuilding, target.getX(), target.getY())
+						..destr()
+				safeDestroy()
+		end)
+		this.setScale(missileScale)
+		
+init
+	CreateTrigger()
+	..registerAnyUnitEvent(EVENT_PLAYER_UNIT_SPELL_EFFECT)
+	..addAction(() -> begin
+		if GetSpellAbilityId() == abilId
+			let caster = GetTriggerUnit()
+			let spellLoc = GetSpellTargetLoc()
+			let pos = vec2(GetLocationX(spellLoc), GetLocationY(spellLoc))
+			RemoveLocation(spellLoc)
+			new Axe(caster, caster.getPos().angleTo(pos))
+	end)
